@@ -1,5 +1,5 @@
 # fledge
-A flexible federated learning simulation framework
+A flexible single machine simulation framework for federated learning
 
 # Requirement
 PyTorch
