@@ -1,5 +1,7 @@
 
 
+import json
+
 class DatasetPartitioner:
 
     class Config:
@@ -14,10 +16,12 @@ class DatasetPartitioner:
         pass
 
     def save(self, path: str):
+        json.dump(self.config, open(path, 'w'))
         pass
 
 class DatasetReader:
     def __init__(self, path: str):
+        self.config = json.load(open(path + '/config.json'))
         pass
 
     def read(self):
