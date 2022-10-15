@@ -1,5 +1,6 @@
 
 import enum
+from copy import deepcopy
 
 from torch import nn
 from torch.utils.data.dataset import Dataset
@@ -14,12 +15,12 @@ from torch.utils.data.dataset import Dataset
 
 
 class TrainerTask():
-    def __init__(self, model: nn.Module, dataset: Dataset, 
+    def __init__(self, model: nn.Module, trainset: Dataset, testset: Dataset,
         epochs: int, lr: float, batch_size: int,
         device: str
         ):
         self.model = model
-        self.dataset = dataset
+        self.dataset = trainset
 
         self.lr = lr
         self.epochs = epochs
@@ -53,5 +54,8 @@ class AggregatorTask():
     def save(self, path: str):
         pass
 
-    def update(self, ):
-        pass
+    def update(self, updates: 'list[dict]'):
+        state_dict = deepcopy(self.model.state_dict())
+        for update in updates:
+            for param in self.model.parameters():
+                param.data += update[param]

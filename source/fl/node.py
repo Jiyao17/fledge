@@ -2,7 +2,7 @@
 # depict the hardware structure of fl
 # how the devices are connected to each other
 
-from multiprocessing import Process, Queue, 
+from multiprocessing import Process, Queue
 from multiprocessing.connection import PipeConnection
 from copy import deepcopy
 import enum
