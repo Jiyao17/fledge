@@ -44,21 +44,20 @@ class Trainer():
             
 
 class Aggregator():
+    """
+    1 to multiple aggregator
+    """
     
     def __init__(self, task: AggregatorTask, trainer_pipes: 'list[PipeConnection]',  
-            final_aggregator=False, parent_pipe: PipeConnection=None, verbose=False
+            parent_pipe: PipeConnection=None, verbose=False
             ):
         # everything related to aggregation
         self.task = task
 
         # pipes for communication with trainers
         self.pipes = trainer_pipes
-        self.final_aggregator = final_aggregator
+        self.final_aggregator = True if parent_pipe is None else False
         self.parent_pipe = parent_pipe
-        if self.final_aggregator is True:
-            assert self.parent_pipe is None, 'Final aggregator shouldn\'t have parent pipe'
-        else:
-            assert self.parent_pipe is not None, 'Non-final aggregator should have parent pipe'
         self.verbose = verbose
 
         # activated trainers in each round
@@ -75,7 +74,6 @@ class Aggregator():
                     self.update()
                 elif command == Cammand.AGGREGATOR_REPORT:
                     self.report()
-
 
                 command = self.parent_pipe.recv()
 
@@ -97,7 +95,5 @@ class Aggregator():
 
         self.task.aggregate(self.update_list)
         
-
-
     def report(self):
         state_dict = self.task.report_update()

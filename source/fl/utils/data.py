@@ -12,7 +12,7 @@ import numpy as np
 import random
 from enum import Enum
 
-from utils.model import SpeechCommand
+# from utils.model import SpeechCommand
 
 
 class TaskName(Enum):
