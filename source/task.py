@@ -16,11 +16,11 @@ from torch.utils.data.dataset import Dataset
 
 
 class TrainerTask(ABC):
-    def __init__(self, model: nn.Module, trainset: Dataset, testset: Dataset,
+    def __init__(self, trainset: Dataset, testset: Dataset,
         epochs: int, lr: float, batch_size: int,
         device: str
         ):
-        self.model = model
+        self.model: nn.Module = None
         self.trainset = trainset
         self.testset = testset
 
@@ -49,9 +49,8 @@ class TrainerTask(ABC):
 
 class AggregatorTask(ABC):
 
-    def __init__(self, model: nn.Module, dataset: Dataset, ):
-        self.model = model
-        self.dataset = dataset
+    def __init__(self, trainset: Dataset, ):
+        self.trainset = trainset
 
     @abstractmethod
     def aggregate(self, ):
