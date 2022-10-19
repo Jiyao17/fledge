@@ -198,8 +198,8 @@ class SCTaskHelper:
         dataset_size = len(test_dataloader.dataset)
         correct, loss = 0, 0
         for data, target in test_dataloader:
-            data = data.to(device)
-            target = target.to(device)
+            data: Tensor = data.to(device)
+            target: Tensor = target.to(device)
             # apply transform and model on whole batch directly on device
             data = transform(data)
             output: Tensor = model(data)
@@ -251,7 +251,7 @@ class SCTaskHelper:
         return tensors, targets
 
     @staticmethod
-    def number_of_correct(pred, target):
+    def number_of_correct(pred: Tensor, target):
         # count number of correct predictions
         return pred.squeeze().eq(target).sum().item()
 
@@ -374,6 +374,7 @@ class SCTrainerTask(TrainerTask):
 
     def test_model(self):
         return SCTaskHelper.test_model(self.model, self.test_dataloader, self.device)
+
 
 class SCAggregatorTask(AggregatorTask):
 

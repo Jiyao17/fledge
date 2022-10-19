@@ -6,6 +6,8 @@ from asyncio import Task
 import enum
 
 from multiprocessing import Process, Pipe
+from multiprocessing.connection import Connection
+
 from source.tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
 from source.node import Trainer, Aggregator
 from source.app import TaskType, Config, App
@@ -35,14 +37,15 @@ class FedCLAR(App):
     def __init__(self, config: FedCLARConfig):
         self.config = config
         
-    def spawn_clients(self)-> tuple[list[Trainer], list[Pipe]]:
+    def spawn_clients(self)-> tuple[list[FedCLARTrainer], list[Connection]]:
         # create users subsets
         if self.config.task_type == FedCLARTaskType.SC:
-            partitioner = SCDatasetPartitionerByUser(self.config.data_dir, None, None, None)
+            trainset, testset = SCTaskHelper.get_datasets(self.config.data_dir)
+            partitioner = SCDatasetPartitionerByUser(trainset, None, None, None)
         user_subsets = partitioner.get_pfl_subsets(100, 0.3)
         # Spawn clients
-        clients = []
-        clients_pipes = []
+        clients: list[FedCLARTrainer] = []
+        clients_pipes: list[Connection] = []
         for i in range(self.config.client_num):
             parent_conn, child_conn = Pipe()
             clients_pipes.append(parent_conn)
@@ -51,7 +54,6 @@ class FedCLAR(App):
                     self.config.local_epochs, self.config.lr, self.config.batch_size,
                     self.config.device
                     )
-            if self.config.task_type == FedCLARTaskType.SC:
                 client = FedCLARTrainer(task, child_conn)
             clients.append(client)
 
@@ -66,6 +68,9 @@ class FedCLAR(App):
 
         return aggregator
 
+    def clustering(self):
+        pass
+
     def run(self):
         clients, clients_pipes = self.spawn_clients()
         aggregator = self.spawn_aggregator(clients_pipes)
@@ -76,6 +81,11 @@ class FedCLAR(App):
         
         # launch aggregator
         for i in range(self.config.clustering_iter):
+            aggregator.work_loop()
+
+        self.clustering()
+
+        for i in range(self.config.global_epochs - self.config.clustering_iter):
             aggregator.work_loop()
 
 
