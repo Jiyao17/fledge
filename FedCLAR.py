@@ -9,20 +9,25 @@ from multiprocessing import Process, Pipe
 from source.tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
 from source.node import Trainer, Aggregator
 from source.app import TaskType, Config, App
+from source.archs.fedclar import FedCLARAggregator, FedCLARTrainer
 
 
 class FedCLARTaskType(TaskType):
-    SC = 0
+    SC = 0 # Speech Commands Recognition
 
 class FedCLARConfig(Config):
-        def __init__(self, data_dir: str, task_type: FedCLARTaskType,
+        def __init__(self, data_dir: str, task_type: FedCLARTaskType = FedCLARTaskType.SC,
             cluster_threshold: float=0.1, clustering_iter: int=10, 
+            global_epochs: int=100, cluster_epochs:int =10, local_epochs: int=2,
             client_num: int=350, batch_size: int=10, lr: float=0.01,
             device: str="cpu",
             ):
             super().__init__(data_dir, task_type, client_num, batch_size, lr, device)
             self.clustering_iter = clustering_iter
             self.cluster_threshold = cluster_threshold
+            self.global_epochs = global_epochs
+            self.cluster_epochs = cluster_epochs
+            self.local_epochs = local_epochs
 
 
 class FedCLAR(App):
@@ -30,7 +35,7 @@ class FedCLAR(App):
     def __init__(self, config: FedCLARConfig):
         self.config = config
         
-    def spawn_clients(self):
+    def spawn_clients(self)-> tuple[list[Trainer], list[Pipe]]:
         # create users subsets
         if self.config.task_type == FedCLARTaskType.SC:
             partitioner = SCDatasetPartitionerByUser(self.config.data_dir, None, None, None)
@@ -46,8 +51,8 @@ class FedCLAR(App):
                     self.config.local_epochs, self.config.lr, self.config.batch_size,
                     self.config.device
                     )
-        
-            client = Trainer(task, child_conn)
+            if self.config.task_type == FedCLARTaskType.SC:
+                client = FedCLARTrainer(task, child_conn)
             clients.append(client)
 
         return clients, clients_pipes
@@ -56,8 +61,9 @@ class FedCLAR(App):
         # create the final aggregator
         if self.config.task_type == FedCLARTaskType.SC:
             agg_task = SCAggregatorTask()
+            aggregator = FedCLARAggregator(agg_task, self.config.global_epochs,
+                self.config.device, clients_pipes, None, False)
 
-        aggregator = Aggregator(agg_task, clients_pipes, None, False)
         return aggregator
 
     def run(self):
@@ -74,8 +80,6 @@ class FedCLAR(App):
 
 
 if __name__ == "__main__":
-    config = App.Config("./dataset/raw",)
-    pipe_agg, pipe_trainer = Pipe()
-    task = SCTrainerTask()
-    client = Trainer(task, pipe_trainer)
-    aggregator = Aggregator(task, [pipe_agg])
+    config = FedCLARConfig("./dataset/raw", FedCLARTaskType.SC)
+    fedclar = FedCLAR(config)
+    fedclar.run()
