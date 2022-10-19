@@ -3,7 +3,8 @@
 # how the devices are connected to each other
 
 from multiprocessing import Process, Queue
-from multiprocessing.connection import PipeConnection
+from multiprocessing.connection import Pipe
+from multiprocessing.connection import Connection
 from copy import deepcopy
 import enum
 
@@ -24,7 +25,7 @@ class Cammand(enum.Enum):
 
 
 class Trainer():
-    def __init__(self, task: TrainerTask, parent_pipe: PipeConnection,):
+    def __init__(self, task: TrainerTask, parent_pipe: Connection,):
         # pipe for communication with aggregator
         self.parent_pipe = parent_pipe
         # everything related to training
@@ -48,8 +49,8 @@ class Aggregator():
     1 to multiple aggregator
     """
     
-    def __init__(self, task: AggregatorTask, trainer_pipes: 'list[PipeConnection]',  
-            parent_pipe: PipeConnection=None, verbose=False
+    def __init__(self, task: AggregatorTask, trainer_pipes: 'list[Connection]',  
+            parent_pipe: Connection=None, verbose=False
             ):
         # everything related to aggregation
         self.task = task
