@@ -1,6 +1,6 @@
 
 from torch.utils.data import Dataset
-from .dataset import DatasetPartitioner
+from ..dataset import DatasetPartitioner
 
 
 class CIFAR10Partitioner(DatasetPartitioner):

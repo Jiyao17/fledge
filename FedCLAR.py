@@ -8,13 +8,14 @@ import enum
 from multiprocessing import Process, Pipe
 from source.tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
 from source.node import Trainer, Aggregator
-from source.app import App
+from source.app import TaskType, Config, App
 
 
-class FedCLAR(App):
+class FedCLARTaskType(TaskType):
+    SC = 0
 
-    class FedCLARConfig(App.Config):
-        def __init__(self, data_dir: str, task_type: App.Config.TaskType,
+class FedCLARConfig(Config):
+        def __init__(self, data_dir: str, task_type: FedCLARTaskType,
             cluster_threshold: float=0.1, clustering_iter: int=10, 
             client_num: int=350, batch_size: int=10, lr: float=0.01,
             device: str="cpu",
@@ -23,12 +24,15 @@ class FedCLAR(App):
             self.clustering_iter = clustering_iter
             self.cluster_threshold = cluster_threshold
 
+
+class FedCLAR(App):
+
     def __init__(self, config: FedCLARConfig):
         self.config = config
         
     def spawn_clients(self):
         # create users subsets
-        if self.config.task_type == App.Config.TaskType.SC:
+        if self.config.task_type == FedCLARTaskType.SC:
             partitioner = SCDatasetPartitionerByUser(self.config.data_dir, None, None, None)
         user_subsets = partitioner.get_pfl_subsets(100, 0.3)
         # Spawn clients
@@ -37,7 +41,7 @@ class FedCLAR(App):
         for i in range(self.config.client_num):
             parent_conn, child_conn = Pipe()
             clients_pipes.append(parent_conn)
-            if self.config.task_type == App.Config.TaskType.SC:
+            if self.config.task_type == FedCLARTaskType.SC:
                 task = SCTrainerTask(user_subsets[i][0], user_subsets[i][1], 
                     self.config.local_epochs, self.config.lr, self.config.batch_size,
                     self.config.device
@@ -50,7 +54,7 @@ class FedCLAR(App):
     
     def spawn_aggregator(self, clients_pipes):
         # create the final aggregator
-        if self.config.task_type == App.Config.TaskType.SC:
+        if self.config.task_type == FedCLARTaskType.SC:
             agg_task = SCAggregatorTask()
 
         aggregator = Aggregator(agg_task, clients_pipes, None, False)

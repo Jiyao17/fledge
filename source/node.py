@@ -2,10 +2,8 @@
 # depict the hardware structure of fl
 # how the devices are connected to each other
 
-from multiprocessing import Process, Queue
-from multiprocessing.connection import Pipe
+from abc import ABC, abstractmethod
 from multiprocessing.connection import Connection
-from copy import deepcopy
 import enum
 import time
 
@@ -16,36 +14,32 @@ from task import TrainerTask, AggregatorTask
 
 class Cammand(enum.Enum):
     # Cammands
-    CLIENT_UPDATE = 0
-    CLIENT_REPORT = 1
+    CLIENT_WEIGHT = 0
+    CLIENT_UPDATE = 1
+    CLIENT_REPORT = 2
+    CLIENT_SET_MODEL = 3
     CLIENT_QUIT = 10
 
     AGGREGATOR_UPDATE = 11
     AGGREGATOR_REPORT = 12
+    AGGREGATOR_WEIGHT = 13
+    AGGREGATOR_SET_MODEL = 14
     AGGREGATOR_QUIT = 20
 
 
-class Trainer():
+class Trainer(ABC):
     def __init__(self, task: TrainerTask, parent_pipe: Connection,):
         # pipe for communication with aggregator
         self.parent_pipe = parent_pipe
         # everything related to training
         self.task = task
 
+    @abstractmethod
     def work_loop(self):
-        command = self.parent_pipe.recv()
-        while command != Cammand.CLIENT_QUIT:
-
-            if command == Cammand.CLIENT_UPDATE:
-                self.task.train()
-            elif command == Cammand.CLIENT_REPORT:
-                model = self.task.get_model_by_state_dict()
-                self.parent_pipe.send(model)
-            
-            command = self.parent_pipe.recv()
+        pass
             
 
-class Aggregator():
+class Aggregator(ABC):
     """
     1 to multiple aggregator
     """
@@ -67,37 +61,8 @@ class Aggregator():
         # responeded trainers in each round
         self.response_list = np.full((len(self.pipes), ), dtype=bool, fill_value=False)
         self.update_list = [None] * len(self.pipes)
+        self.weights = np.ndarray((len(self.pipes), ), dtype=float)
 
+    @abstractmethod
     def work_loop(self):
-        if self.final_aggregator is False:
-            command = self.parent_pipe.recv()
-            while command != Cammand.AGGREGATOR_QUIT:
-                if command == Cammand.AGGREGATOR_UPDATE:
-                    self.update()
-                elif command == Cammand.AGGREGATOR_REPORT:
-                    self.report()
-
-                command = self.parent_pipe.recv()
-
-    def update(self):
-        # reset response list
-        self.response_list = np.full((len(self.pipes), ), dtype=bool, fill_value=False)
-
-        # send update command to all trainers
-        for pipe in self.pipes:
-            pipe.send(Cammand.CLIENT_UPDATE)
-            pipe.send(Cammand.CLIENT_REPORT)
-        
-        # wait for trainers' response
-        while not np.all(self.response_list):
-            for i, pipe in enumerate(self.pipes):
-                if self.response_list[i] is False and pipe.poll():
-                    self.update_list[i] = pipe.recv()
-                    self.response_list[i] = True
-            
-            time.sleep(1)
-
-        self.task.aggregate(self.update_list)
-        
-    def report(self):
-        state_dict = self.task.report_update()
+        pass
