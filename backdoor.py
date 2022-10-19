@@ -4,6 +4,7 @@ import numpy as np
 
 from torch import nn
 
+from utils.dataset import SpeechCommandsPartitioner
 
 
 def cosine_similarity(v1, v2):
@@ -17,3 +18,6 @@ def flatten_neural_network(model: nn.Module):
     Flatten the neural network model into a vector.
     """
     return np.concatenate([p.detach().numpy().flatten() for p in model.parameters()])
+
+
+

@@ -21,7 +21,8 @@ class TrainerTask(ABC):
         device: str
         ):
         self.model = model
-        self.dataset = trainset
+        self.trainset = trainset
+        self.testset = testset
 
         self.lr = lr
         self.epochs = epochs
@@ -32,9 +33,9 @@ class TrainerTask(ABC):
     def train(self):
         pass
 
-    @abstractmethod
-    def report_update(self):
-        pass
+    # @abstractmethod
+    # def report_update(self):
+    #     pass
         # return self.model.state_dict()
 
 

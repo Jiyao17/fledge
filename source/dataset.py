@@ -12,18 +12,18 @@ import torchvision.transforms as tvtf
 import numpy as np
 import matplotlib.pyplot as plt
 
-def get_CIFAR_label_types(dataset: Dataset) -> list:
-    """
-    CIFAR
-    """
-    targets = dataset.targets
-    if type(targets) is not list:
-        targets = targets.tolist()
-    labels = list(set(targets))
-    # can be deleted, does not matter but more clear if kept
-    labels.sort()
+# def get_CIFAR_label_types(dataset: Dataset) -> list:
+#     """
+#     CIFAR
+#     """
+#     targets = dataset.targets
+#     if type(targets) is not list:
+#         targets = targets.tolist()
+#     labels = list(set(targets))
+#     # can be deleted, does not matter but more clear if kept
+#     labels.sort()
 
-    return labels
+#     return labels
 
 # speech_command_labels: list = ['backward', 'bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'follow',
 #     'forward', 'four', 'go', 'happy', 'house', 'learn', 'left', 'marvin', 'nine', 'no', 'off',
@@ -214,6 +214,29 @@ class CIFAR10Partitioner(DatasetPartitioner):
     def dataset_categorize(self) -> 'list[list[int]]':
         targets = self.dataset.targets
         categorized_indexes = [[] for i in range(10)]
+        for i, target in enumerate(targets):
+            categorized_indexes[target].append(i)
+        return categorized_indexes
+
+
+class SpeechCommandsPartitioner(DatasetPartitioner):
+    speech_command_labels: list = ['backward', 'bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'follow',
+        'forward', 'four', 'go', 'happy', 'house', 'learn', 'left', 'marvin', 'nine', 'no', 'off',
+        'on', 'one', 'right', 'seven', 'sheila', 'six', 'stop', 'three', 'tree', 'two', 'up', 
+        'visual', 'wow', 'yes', 'zero']
+
+    def __init__(self, dataset: Dataset, subset_num: int, data_num_range: tuple, alpha_range: tuple):
+        super().__init__(dataset, subset_num, data_num_range, alpha_range)
+
+    def get_label_types(self) -> 'list[str]':
+        return self.speech_command_labels
+
+    def dataset_categorize(self) -> 'list[list[int]]':
+        targets = []
+        for waveform, sample_rate, label, speaker_id, utterance_number in self.dataset:
+            targets.append(label)
+
+        categorized_indexes = [[] for i in range(len(self.speech_command_labels))]
         for i, target in enumerate(targets):
             categorized_indexes[target].append(i)
         return categorized_indexes

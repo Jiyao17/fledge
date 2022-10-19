@@ -1,5 +1,5 @@
 
-from .utils.dataset import DatasetPartitioner, DatasetReader
+from .dataset import DatasetPartitioner, DatasetReader
 
 class App:
 
