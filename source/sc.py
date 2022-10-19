@@ -1,6 +1,8 @@
 
 
 import os
+from typing import overload
+from importlib_metadata import distribution
 
 import torch
 from torch import nn
@@ -14,6 +16,8 @@ from torch import nn, optim, Tensor
 
 from .task import TrainerTask
 from .dataset import DatasetPartitioner
+
+import numpy as np
 
 
 class SCModel(nn.Module):
@@ -76,6 +80,41 @@ class SCTaskHelper:
                 excludes = load_list("validation_list.txt") + load_list("testing_list.txt")
                 excludes = set(excludes)
                 self._walker = [w for w in self._walker if w not in excludes]
+
+    @staticmethod
+    def get_label_distri_by_speaker(dataset: Dataset) -> 'dict[str, list]':
+        """
+        Analyze the dataset.
+        return: dict{'speaker_id': [labels_nums]}
+        """
+        label_num = len(SCTaskHelper.labels)
+        distribution: dict[str:list] = {}
+        for i in range(len(dataset)):
+            waveform, sample_rate, label, speaker_id, utterance_number = dataset[i]
+            if speaker_id not in distribution.keys():
+                distribution[speaker_id] = np.zeros(label_num, dtype=np.int32)
+            label_index = SCTaskHelper.labels.index(label)
+            distribution[speaker_id][label_index] += 1
+
+        # dist_arr = np.array([ v for k, v in distribution.items() ], dtype=np.int32)
+        return distribution
+
+    @staticmethod
+    def get_index_distri_by_speaker(dataset: Dataset) -> 'dict[str, list]':
+        """
+        Analyze the dataset.
+        return: dict{'speaker_id': [data_indexs]}
+        """
+        distr_by_speaker: dict[str, list] = {}
+
+        for i in range(len(dataset)):
+            wave_form, sample_rate, label, speaker_id, utterance_number = dataset[i]
+            if speaker_id not in distr_by_speaker.keys():
+                distr_by_speaker[speaker_id] = []
+            distr_by_speaker[speaker_id].append(i)
+
+        return distr_by_speaker
+
 
     @staticmethod
     def get_datasets(data_path: str) -> 'tuple[Dataset, Dataset]':
@@ -251,7 +290,7 @@ class SCTrainerTask(TrainerTask):
             target = target.to(self.device)
             # apply transform and model on whole batch directly on device
             data = self.transform(data)
-            output = self.model(data)
+            output: Tensor = self.model(data)
 
             pred = SCTaskHelper.get_likely_index(output)
             loss += self.loss_fn(output.squeeze(), target).item()
@@ -282,3 +321,21 @@ class SCDatasetPartitioner(DatasetPartitioner):
         for i, target in enumerate(targets):
             categorized_indexes[target].append(i)
         return categorized_indexes
+
+class SCDatasetPartitionerByUser(SCDatasetPartitioner):
+
+    
+    def get_subsets(self, data_num_threshold) -> 'list[Dataset]':
+        distribution = SCTaskHelper.get_index_distri_by_speaker(self.dataset)
+        filtered_distri = {}
+        for speaker in distribution.keys():
+            if sum(distribution[speaker]) > data_num_threshold:
+                filtered_distri[speaker] = distribution[speaker]
+
+        subsets = []
+        for speaker in filtered_distri.keys():
+            subset = Subset(self.dataset, filtered_distri[speaker])
+            subsets.append(subset)
+        
+        return subsets
+
