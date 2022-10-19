@@ -4,8 +4,6 @@
 
 
 import os
-from typing import overload
-from importlib_metadata import distribution
 
 import torch
 from torch import nn
@@ -17,7 +15,7 @@ from torchaudio.transforms import Resample
 import torch.nn.functional as F
 from torch import nn, optim, Tensor
 
-from .task import TrainerTask
+from .task import TrainerTask, AggregatorTask
 from .dataset import DatasetPartitioner
 
 import numpy as np
@@ -61,10 +59,18 @@ class SCModel(nn.Module):
 
 
 class SCTaskHelper:
+    """
+    Helper class for Speech Commands Task
+    Contains common ustils for SC
+    
+    """
+
     labels: list = ['backward', 'bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'follow',
         'forward', 'four', 'go', 'happy', 'house', 'learn', 'left', 'marvin', 'nine', 'no', 'off',
         'on', 'one', 'right', 'seven', 'sheila', 'six', 'stop', 'three', 'tree', 'two', 'up', 
         'visual', 'wow', 'yes', 'zero']
+    loss_fn = F.nll_loss
+    transform = Resample(orig_freq=16000, new_freq=8000, )
 
     class SubsetSC(SPEECHCOMMANDS):
         def __init__(self, dataset_type, data_path):
@@ -183,6 +189,33 @@ class SCTaskHelper:
         return dataloader
 
     @staticmethod
+    def test_model(model: nn.Module, test_dataloader: DataLoader, device: str):
+        
+        model.to(device)
+        transform = SCTaskHelper.transform.to(device)
+        model.eval()
+
+        dataset_size = len(test_dataloader.dataset)
+        correct, loss = 0, 0
+        for data, target in test_dataloader:
+            data = data.to(device)
+            target = target.to(device)
+            # apply transform and model on whole batch directly on device
+            data = transform(data)
+            output: Tensor = model(data)
+
+            pred = SCTaskHelper.get_likely_index(output)
+            loss += SCTaskHelper.loss_fn(output.squeeze(), target).item()
+
+            # pred = output.argmax(dim=-1)
+            correct += SCTaskHelper.number_of_correct(pred, target)
+
+        correct /= 1.0*dataset_size
+        loss /= 1.0*dataset_size
+
+        return correct, loss
+
+    @staticmethod
     def label_to_index(word):
         # Return the position of the word in labels
         return torch.tensor(SCTaskHelper.labels.index(word))
@@ -230,6 +263,63 @@ class SCTaskHelper:
     @staticmethod
     def count_parameters(model: nn.Module):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+class SCDatasetPartitioner(DatasetPartitioner):
+
+    def __init__(self, dataset: Dataset, subset_num: int, data_num_range: tuple, alpha_range: tuple):
+        super().__init__(dataset, subset_num, data_num_range, alpha_range)
+
+    def get_label_types(self) -> 'list[str]':
+        return SCTaskHelper.labels
+
+    def dataset_categorize(self) -> 'list[list[int]]':
+        targets = []
+        for waveform, sample_rate, label, speaker_id, utterance_number in self.dataset:
+            targets.append(label)
+
+        categorized_indexes = [[] for i in range(len(self.get_label_types()))]
+        for i, target in enumerate(targets):
+            categorized_indexes[target].append(i)
+        return categorized_indexes
+
+
+class SCDatasetPartitionerByUser(SCDatasetPartitioner):
+
+    def get_subsets(self, data_num_threshold) -> 'list[Dataset]':
+        distribution = SCTaskHelper.get_index_distri_by_speaker(self.dataset)
+        filtered_distri = {}
+        for speaker in distribution.keys():
+            if sum(distribution[speaker]) >= data_num_threshold:
+                filtered_distri[speaker] = distribution[speaker]
+
+        subsets = []
+        for speaker in filtered_distri.keys():
+            subset = Subset(self.dataset, filtered_distri[speaker])
+            subsets.append(subset)
+        
+        return subsets
+
+    def get_pfl_subsets(self, data_num_threshold: int, test_frac: float) -> 'list[tuple[Dataset, Dataset]]':
+        """
+        generate subsets for pfl
+        trainset and testset for each user
+        """
+        distribution = SCTaskHelper.get_index_distri_by_speaker(self.dataset)
+        user_subsets = []
+
+        for speaker in distribution.keys():
+            if sum(distribution[speaker]) >= data_num_threshold:
+                # randomize user data
+                np.random.shuffle(distribution[speaker])
+                # split user data into train and test
+                test_num = int(len(distribution[speaker]) * test_frac)
+                trainset = Subset(self.dataset, distribution[speaker][test_num:])
+                testset = Subset(self.dataset, distribution[speaker][:test_num])
+
+                user_subsets.append((trainset, testset))
+        
+        return user_subsets
 
 
 class SCTrainerTask(TrainerTask):
@@ -282,64 +372,24 @@ class SCTrainerTask(TrainerTask):
                 self.optimizer.step()
                 # self.scheduler.step()
 
-    def test(self):
-        self.model.to(self.device)
-        self.model.eval()
+    def test_model(self):
+        return SCTaskHelper.test_model(self.model, self.test_dataloader, self.device)
 
-        dataset_size = len(self.test_dataloader.dataset)
-        correct, loss = 0, 0
-        for data, target in self.test_dataloader:
-            data = data.to(self.device)
-            target = target.to(self.device)
-            # apply transform and model on whole batch directly on device
-            data = self.transform(data)
-            output: Tensor = self.model(data)
+class SCAggregatorTask(AggregatorTask):
 
-            pred = SCTaskHelper.get_likely_index(output)
-            loss += self.loss_fn(output.squeeze(), target).item()
+    def __init__(self, trainset: Dataset=None, testset: Dataset=None, device: str="cpu"):
+        super().__init__(trainset, testset)
 
-            # pred = output.argmax(dim=-1)
-            correct += SCTaskHelper.number_of_correct(pred, target)
+        self.loss_fn = SCTaskHelper.loss_fn
+        self.device = device
 
-        correct /= 1.0*dataset_size
-        loss /= 1.0*dataset_size
+        transform = SCTaskHelper.transform
+        self.transform = transform.to(device)
 
-        return correct, loss
+        self.model = SCModel().to(device)
 
+        if testset is not None:
+            self.test_dataloader = SCTaskHelper.get_dataloader("test", testset, device, 500)
 
-class SCDatasetPartitioner(DatasetPartitioner):
-
-    def __init__(self, dataset: Dataset, subset_num: int, data_num_range: tuple, alpha_range: tuple):
-        super().__init__(dataset, subset_num, data_num_range, alpha_range)
-
-    def get_label_types(self) -> 'list[str]':
-        return SCTaskHelper.labels
-
-    def dataset_categorize(self) -> 'list[list[int]]':
-        targets = []
-        for waveform, sample_rate, label, speaker_id, utterance_number in self.dataset:
-            targets.append(label)
-
-        categorized_indexes = [[] for i in range(len(self.get_label_types()))]
-        for i, target in enumerate(targets):
-            categorized_indexes[target].append(i)
-        return categorized_indexes
-
-
-class SCDatasetPartitionerByUser(SCDatasetPartitioner):
-
-    
-    def get_subsets(self, data_num_threshold) -> 'list[Dataset]':
-        distribution = SCTaskHelper.get_index_distri_by_speaker(self.dataset)
-        filtered_distri = {}
-        for speaker in distribution.keys():
-            if sum(distribution[speaker]) > data_num_threshold:
-                filtered_distri[speaker] = distribution[speaker]
-
-        subsets = []
-        for speaker in filtered_distri.keys():
-            subset = Subset(self.dataset, filtered_distri[speaker])
-            subsets.append(subset)
-        
-        return subsets
-
+    def test_model(self):
+        return SCTaskHelper.test_model(self.model, self.test_dataloader, self.device)

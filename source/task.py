@@ -33,35 +33,45 @@ class TrainerTask(ABC):
     def train(self):
         pass
 
+    @abstractmethod
+    def test_model(self):
+        pass
+
     # @abstractmethod
-    # def report_update(self):
+    # def get_update(self):
     #     pass
-        # return self.model.state_dict()
+
+    # @abstractmethod
+    # def get_model(self):
+    #     pass
 
 
     def set_model_by_state_dict(self, state_dict: dict):
         self.model.load_state_dict(state_dict)
     
 
-    def save(self, path: str):
-        pass
+    # def save(self, path: str):
+    #     pass
 
 
 class AggregatorTask(ABC):
 
-    def __init__(self, trainset: Dataset, ):
+    def __init__(self, trainset: Dataset=None, testset: Dataset=None,):
         self.trainset = trainset
+        self.testset = testset
+
+        self.model: nn.Module = None
 
     @abstractmethod
-    def aggregate(self, ):
+    def aggregate(self, state_dicts: list[dict]):
         pass
 
-    def save(self, path: str):
-        pass
+    # def save(self, path: str):
+    #     pass
 
-    @abstractmethod
-    def update(self, updates: 'list[dict]'):
-        pass
+    # @abstractmethod
+    # def update(self, updates: 'list[dict]'):
+    #     pass
         # state_dict = deepcopy(self.model.state_dict())
         # for update in updates:
         #     for param in self.model.parameters():
