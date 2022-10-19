@@ -7,6 +7,7 @@ from multiprocessing.connection import Pipe
 from multiprocessing.connection import Connection
 from copy import deepcopy
 import enum
+import time
 
 import numpy as np
 
@@ -38,8 +39,8 @@ class Trainer():
             if command == Cammand.CLIENT_UPDATE:
                 self.task.train()
             elif command == Cammand.CLIENT_REPORT:
-                update = self.task.report_update()
-                self.parent_pipe.send(update)
+                model = self.task.get_model_by_state_dict()
+                self.parent_pipe.send(model)
             
             command = self.parent_pipe.recv()
             
@@ -85,7 +86,7 @@ class Aggregator():
         # send update command to all trainers
         for pipe in self.pipes:
             pipe.send(Cammand.CLIENT_UPDATE)
-            # pipe.send(Cammand.CLIENT_REPORT)
+            pipe.send(Cammand.CLIENT_REPORT)
         
         # wait for trainers' response
         while not np.all(self.response_list):
@@ -93,6 +94,8 @@ class Aggregator():
                 if self.response_list[i] is False and pipe.poll():
                     self.update_list[i] = pipe.recv()
                     self.response_list[i] = True
+            
+            time.sleep(1)
 
         self.task.aggregate(self.update_list)
         

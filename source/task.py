@@ -42,9 +42,8 @@ class TrainerTask(ABC):
     #     pass
 
     # @abstractmethod
-    # def get_model(self):
-    #     pass
-
+    def get_model_by_state_dict(self):
+        return self.model.state_dict()
 
     def set_model_by_state_dict(self, state_dict: dict):
         self.model.load_state_dict(state_dict)
@@ -62,8 +61,8 @@ class AggregatorTask(ABC):
 
         self.model: nn.Module = None
 
-    @abstractmethod
-    def aggregate(self, state_dicts: list[dict]):
+    # @abstractmethod
+    def aggregate(self, weights: list[float], state_dicts: list[dict]):
         pass
 
     # def save(self, path: str):
