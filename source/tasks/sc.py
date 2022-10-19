@@ -65,10 +65,10 @@ class SCTaskHelper:
     
     """
 
-    labels: list = ['backward', 'bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'follow',
+    labels: tuple[str] = ('backward', 'bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'follow',
         'forward', 'four', 'go', 'happy', 'house', 'learn', 'left', 'marvin', 'nine', 'no', 'off',
         'on', 'one', 'right', 'seven', 'sheila', 'six', 'stop', 'three', 'tree', 'two', 'up', 
-        'visual', 'wow', 'yes', 'zero']
+        'visual', 'wow', 'yes', 'zero')
     loss_fn = F.nll_loss
     transform = Resample(orig_freq=16000, new_freq=8000, )
 
@@ -270,6 +270,12 @@ class SCDatasetPartitioner(DatasetPartitioner):
     def __init__(self, dataset: Dataset, subset_num: int, data_num_range: tuple, alpha_range: tuple):
         super().__init__(dataset, subset_num, data_num_range, alpha_range)
 
+    def get_targets(self) -> list:
+        targets = []
+        for waveform, sample_rate, label, speaker_id, utterance_number in self.dataset:
+            targets.append(label)
+        return targets
+
     def get_label_types(self) -> 'list[str]':
         return SCTaskHelper.labels
 
@@ -277,10 +283,11 @@ class SCDatasetPartitioner(DatasetPartitioner):
         targets = []
         for waveform, sample_rate, label, speaker_id, utterance_number in self.dataset:
             targets.append(label)
-
-        categorized_indexes = [[] for i in range(len(self.get_label_types()))]
+        labels = self.get_label_types()
+        categorized_indexes = [[] for i in range(len(labels))]
         for i, target in enumerate(targets):
-            categorized_indexes[target].append(i)
+            data_index = labels.index(target)
+            categorized_indexes[data_index].append(i)
         return categorized_indexes
 
 

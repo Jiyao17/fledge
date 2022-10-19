@@ -6,7 +6,7 @@ from .dataset import DatasetPartitioner, DatasetReader
 
 
 class TaskType(enum.Enum):
-    SC = 0
+    pass
 
 
 class Config:

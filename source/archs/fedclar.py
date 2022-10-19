@@ -1,9 +1,25 @@
 
 import time
 import numpy as np
+import enum
 
-from ..node import Trainer, Aggregator, Cammand
+from ..node import Trainer, Aggregator
+from ..task import TrainerTask, AggregatorTask
 
+
+class Cammand(enum.Enum):
+    # Cammands
+    CLIENT_SEND_WEIGHT = 0
+    CLIENT_UPDATE = 1
+    CLIENT_SEND_MODEL = 2
+    CLIENT_SET_MODEL = 3
+    CLIENT_QUIT = 9
+
+    AGGREGATOR_SEND_WEIGHT = 10
+    AGGREGATOR_UPDATE = 11
+    AGGREGATOR_SEND_MODEL = 12
+    AGGREGATOR_SET_MODEL = 13
+    AGGREGATOR_QUIT = 19
 
 class FedCLARTrainer(Trainer):
 
@@ -22,11 +38,16 @@ class FedCLARTrainer(Trainer):
 
 class FedCLARAggregator(Aggregator):
 
-    def work_loop(self):
+    def __init__(self, task: AggregatorTask, epochs: int, device: str, trainer_pipes: 'list[Connection]', parent_pipe: Connection = None, verbose=False):
+        super().__init__(task, epochs, device, trainer_pipes, parent_pipe, verbose)
+
         for i, pipe in enumerate(self.pipes):
             pipe.send(Cammand.CLIENT_SEND_WEIGHT)
             self.weights[i] = pipe.recv()
         self.weights /= np.sum(self.weights)
+
+
+    def work_loop(self):
 
         if self.final_aggregator is False:
             # command = self.parent_pipe.recv()

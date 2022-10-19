@@ -9,22 +9,9 @@ import time
 
 import numpy as np
 
-from task import TrainerTask, AggregatorTask
+from .task import TrainerTask, AggregatorTask
 
 
-class Cammand(enum.Enum):
-    # Cammands
-    CLIENT_SEND_WEIGHT = 0
-    CLIENT_UPDATE = 1
-    CLIENT_SEND_MODEL = 2
-    CLIENT_SET_MODEL = 3
-    CLIENT_QUIT = 9
-
-    AGGREGATOR_SEND_WEIGHT = 10
-    AGGREGATOR_UPDATE = 11
-    AGGREGATOR_SEND_MODEL = 12
-    AGGREGATOR_SET_MODEL = 13
-    AGGREGATOR_QUIT = 19
 
 
 class Trainer(ABC):

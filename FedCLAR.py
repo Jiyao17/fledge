@@ -5,7 +5,7 @@
 from asyncio import Task
 import enum
 
-from multiprocessing import Process, Pipe
+from multiprocessing import Process, Pipe, Queue
 from multiprocessing.connection import Connection
 
 from source.tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
@@ -18,18 +18,20 @@ class FedCLARTaskType(TaskType):
     SC = 0 # Speech Commands Recognition
 
 class FedCLARConfig(Config):
-        def __init__(self, data_dir: str, task_type: FedCLARTaskType = FedCLARTaskType.SC,
-            cluster_threshold: float=0.1, clustering_iter: int=10, 
-            global_epochs: int=100, cluster_epochs:int =10, local_epochs: int=2,
-            client_num: int=350, batch_size: int=10, lr: float=0.01,
-            device: str="cpu",
-            ):
-            super().__init__(data_dir, task_type, client_num, batch_size, lr, device)
-            self.clustering_iter = clustering_iter
-            self.cluster_threshold = cluster_threshold
-            self.global_epochs = global_epochs
-            self.cluster_epochs = cluster_epochs
-            self.local_epochs = local_epochs
+    def __init__(self,
+        data_dir: str, task_type: FedCLARTaskType = FedCLARTaskType.SC,
+        cluster_threshold: float=0.1, clustering_iter: int=20, 
+        global_epochs: int=100, cluster_epochs:int =10, local_epochs: int=2,
+        client_num: int=350, batch_size: int=10, lr: float=0.01,
+        device: str="cpu",
+        ):
+        super().__init__(data_dir, task_type, client_num, batch_size, lr, device)
+        # self.proc_num = proc_num
+        self.clustering_iter = clustering_iter
+        self.cluster_threshold = cluster_threshold
+        self.global_epochs = global_epochs
+        self.cluster_epochs = cluster_epochs
+        self.local_epochs = local_epochs
 
 
 class FedCLAR(App):
@@ -76,8 +78,12 @@ class FedCLAR(App):
         aggregator = self.spawn_aggregator(clients_pipes)
 
         # start clients
+        clients_procs: list[Process] = []
         for client in clients:
-            client.work_loop()
+            # client.work_loop()
+            client_proc = Process(target=client.work_loop)
+            client_proc.start()
+            clients_procs.append(client_proc)
         
         # launch aggregator
         for i in range(self.config.clustering_iter):
@@ -90,6 +96,6 @@ class FedCLAR(App):
 
 
 if __name__ == "__main__":
-    config = FedCLARConfig("./dataset/raw", FedCLARTaskType.SC)
+    config = FedCLARConfig("./dataset/raw", FedCLARTaskType.SC, client_num=10)
     fedclar = FedCLAR(config)
     fedclar.run()
