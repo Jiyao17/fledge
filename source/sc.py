@@ -322,6 +322,7 @@ class SCDatasetPartitioner(DatasetPartitioner):
             categorized_indexes[target].append(i)
         return categorized_indexes
 
+
 class SCDatasetPartitionerByUser(SCDatasetPartitioner):
 
     

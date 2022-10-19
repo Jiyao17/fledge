@@ -20,24 +20,23 @@ def flatten_neural_network(model: nn.Module):
 
 print("Loading datasets...")
 trainset, testset = SCTaskHelper.get_datasets("./dataset/raw")
-
 distribution = SCTaskHelper.get_label_distri_by_speaker(trainset)
 distribution = np.array([ v for k, v in distribution.items() ], dtype=np.int32)
 
 print(distribution.sum(0))
 np.sort(distribution, axis=1)
-np.savetxt("distribution_all.csv", distribution, delimiter=",", fmt="%d")
-rows = np.argwhere(np.sum(distribution, axis=1) >= 100)
-print(len(rows))
-rows = np.argwhere(np.sum(distribution, axis=1) >= 150)
-print(len(rows))
-rows = np.argwhere(np.sum(distribution, axis=1) >= 200)
-print(len(rows))
+np.savetxt("./exp_data/distribution_all.csv", distribution, delimiter=",", fmt="%d")
+# rows = np.argwhere(np.sum(distribution, axis=1) >= 100)
+# print(len(rows))
+# rows = np.argwhere(np.sum(distribution, axis=1) >= 150)
+# print(len(rows))
+# rows = np.argwhere(np.sum(distribution, axis=1) >= 200)
+# print(len(rows))
 
 # print(distribution[rows])
 distribution = [ dist for dist in distribution if np.sum(dist) >= 100 ]
 
-np.savetxt("distribution_data100.csv", distribution, delimiter=",", fmt="%d")
+np.savetxt("./exp_data/distribution_data100.csv", distribution, delimiter=",", fmt="%d")
 
 
 # print("Loading model...")
