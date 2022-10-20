@@ -10,6 +10,8 @@ from source.tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDat
 from source.app import TaskType, Config, App
 from source.archs.fedclar import FedCLARAggregator, FedCLARTrainer
 
+import numpy as np
+
 
 class FedCLARTaskType(TaskType):
     SC = 0 # Speech Commands Recognition
@@ -93,10 +95,14 @@ class FedCLAR(App):
         # launch aggregator
         aggregator.init_params()
         for i in range(self.config.clustering_iter):
-            aggregator.work_loop()
-            accu, loss = aggregator.task.test_model()
-            print(f'Epoch {i} accu: {accu}, loss: {loss}')
-
+            if i % 5 == 4:
+                aggregator.work_loop(True)
+                results = np.sum(aggregator.personal_test_results, axis=0) / aggregator.personal_test_results.shape[0]
+                print(f'Epoch {i}, personal accu: {results[0]}, loss: {results[1]}')
+                accu, loss = aggregator.task.test_model()
+                print(f'Epoch {i}, global accu: {accu}, loss: {loss}')
+            else:
+                aggregator.work_loop(False)
 
         self.clustering()
 
@@ -104,6 +110,9 @@ class FedCLAR(App):
             aggregator.work_loop()
             accu, loss = aggregator.task.test_model()
             print(f'Epoch {i + self.config.clustering_iter} accu: {accu}, loss: {loss}')
+
+        # stop clients
+        aggregator.stop_all_trainers()
 
 if __name__ == "__main__":
     config = FedCLARConfig("./dataset/raw", FedCLARTaskType.SC, 

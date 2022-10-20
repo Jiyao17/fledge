@@ -33,9 +33,9 @@ class TrainerTask(ABC):
     def train(self):
         pass
 
-    @abstractmethod
-    def test_model(self):
-        pass
+    # @abstractmethod
+    # def test(self):
+    #     pass
 
     # @abstractmethod
     # def get_update(self):

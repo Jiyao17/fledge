@@ -167,9 +167,9 @@ class SCTaskHelper:
         if loader_type != "train":
             dataloader = DataLoader(
                 dataset,
-                batch_size=500,
+                batch_size=batch_size,
                 shuffle=True,
-                drop_last=True,
+                drop_last=False,
                 collate_fn=SCTaskHelper.collate_fn,
                 num_workers=num_workers,
                 pin_memory=pin_memory,
@@ -357,7 +357,7 @@ class SCTrainerTask(TrainerTask):
         if trainset is not None:
             self.train_dataloader = SCTaskHelper.get_dataloader("train", trainset, device, batch_size)
         if testset is not None:
-            self.test_dataloader = SCTaskHelper.get_dataloader("test", testset, device, batch_size)
+            self.test_dataloader = SCTaskHelper.get_dataloader("test", testset, device, len(testset))
 
     def train(self):
         self.model.to(self.device)
@@ -379,7 +379,7 @@ class SCTrainerTask(TrainerTask):
                 self.optimizer.step()
                 # self.scheduler.step()
 
-    def test_model(self):
+    def test(self):
         return SCTaskHelper.test_model(self.model, self.test_dataloader, self.device)
 
 

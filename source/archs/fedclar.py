@@ -16,6 +16,7 @@ class Cammand(enum.Enum):
     CLIENT_UPDATE = 1
     CLIENT_SEND_MODEL = 2
     CLIENT_SET_MODEL = 3
+    CLIENT_SEND_TEST_RESULTS = 4
     CLIENT_QUIT = 9
 
     AGGREGATOR_SEND_WEIGHT = 10
@@ -23,6 +24,7 @@ class Cammand(enum.Enum):
     AGGREGATOR_SEND_MODEL = 12
     AGGREGATOR_SET_MODEL = 13
     AGGREGATOR_QUIT = 19
+
 
 class FedCLARTrainer(Trainer):
 
@@ -47,8 +49,13 @@ class FedCLARTrainer(Trainer):
                 model = self.task.get_model_by_state_dict()
                 self.parent_pipe.send(model)
                 # print("Client sent model")
+            elif command == Cammand.CLIENT_SEND_TEST_RESULTS:
+                self.parent_pipe.send(self.task.test())
+                # print("Client sent test results")
             
             command = self.parent_pipe.recv()
+
+        self.parent_pipe.close()
 
 
 class FedCLARAggregator(Aggregator):
@@ -56,6 +63,8 @@ class FedCLARAggregator(Aggregator):
     def __init__(self, task: SCAggregatorTask, epochs: int, device: str, trainer_pipes: 'list[Connection]', parent_pipe: Connection = None, verbose=False):
         super().__init__(task, epochs, device, trainer_pipes, parent_pipe, verbose)
         self.task = task
+
+        self.personal_test_results = np.zeros((len(self.pipes), 2), dtype=np.float32)
 
     def init_params(self):
         # must call this function after all trainers procs started and before work_loop
@@ -65,7 +74,7 @@ class FedCLARAggregator(Aggregator):
         print("Clients data nums: ", self.weights)
 
 
-    def work_loop(self):
+    def work_loop(self, report_personal_test=False):
 
         if self.final_aggregator is False:
             # command = self.parent_pipe.recv()
@@ -78,10 +87,10 @@ class FedCLARAggregator(Aggregator):
             #     command = self.parent_pipe.recv()
             pass
         else:
-            self.final_aggregator_work_loop()
+            self.final_aggregator_work_loop(report_personal_test)
 
 
-    def final_aggregator_work_loop(self):
+    def final_aggregator_work_loop(self, report_personal_test=False):
         # distribute trainers models
         for i, pipe in enumerate(self.pipes):
             pipe.send(Cammand.CLIENT_SET_MODEL)
@@ -100,8 +109,24 @@ class FedCLARAggregator(Aggregator):
                 if self.response_list[i] == False and pipe.poll(5): #  
                     self.update_list[i] = pipe.recv()
                     self.response_list[i] = True
+        # let clients report personal test results
+        if report_personal_test:
+            for i, pipe in enumerate(self.pipes):
+                pipe.send(Cammand.CLIENT_SEND_TEST_RESULTS)
+            self.response_list = np.full((len(self.pipes), ), dtype=bool, fill_value=False)
+            # wait for trainers' response
+            self.personal_test_results = np.zeros((len(self.pipes), 2), dtype=np.float32)
+            while not np.all(self.response_list):
+                for i, pipe in enumerate(self.pipes):
+                    if self.response_list[i] == False and pipe.poll(5):
+                        per_test_r = pipe.recv()
+                        self.personal_test_results[i][0] = per_test_r[0]
+                        self.personal_test_results[i][1] = per_test_r[1]
+                        self.response_list[i] = True
         # aggregate
         self.task.aggregate(self.update_list, self.weights/np.sum(self.weights))
 
-    def report(self):
-        pass
+    def stop_all_trainers(self):
+        for pipe in self.pipes:
+            pipe.send(Cammand.CLIENT_QUIT)
+        # self.parent_pipe.close()
