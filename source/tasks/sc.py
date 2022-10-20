@@ -399,5 +399,5 @@ class SCAggregatorTask(AggregatorTask):
         if testset is not None:
             self.test_dataloader = SCTaskHelper.get_dataloader("test", testset, device, 500)
 
-    def test_model(self):
+    def test(self):
         return SCTaskHelper.test_model(self.model, self.test_dataloader, self.device)

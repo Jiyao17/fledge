@@ -47,5 +47,5 @@ class App(ABC):
         pass
 
     @abstractmethod
-    def spawn_aggregator(self, clients_pipes):
+    def create_aggregator(self, clients_pipes):
         pass
