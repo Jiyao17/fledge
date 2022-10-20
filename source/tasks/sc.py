@@ -168,7 +168,7 @@ class SCTaskHelper:
             dataloader = DataLoader(
                 dataset,
                 batch_size=500,
-                shuffle=False,
+                shuffle=True,
                 drop_last=True,
                 collate_fn=SCTaskHelper.collate_fn,
                 num_workers=num_workers,
@@ -182,7 +182,7 @@ class SCTaskHelper:
                 collate_fn=SCTaskHelper.collate_fn,
                 num_workers=num_workers,
                 pin_memory=pin_memory,
-                drop_last=False
+                drop_last=True
             )
             
         
