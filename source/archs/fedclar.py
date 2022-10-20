@@ -5,6 +5,7 @@ import enum
 
 from multiprocessing.connection import Connection
 
+
 from ..node import Trainer, Aggregator
 from ..tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
 
@@ -25,17 +26,27 @@ class Cammand(enum.Enum):
 
 class FedCLARTrainer(Trainer):
 
+    def __init__(self, task: SCTrainerTask, pipe: Connection):
+        super().__init__(task, pipe)
+        self.task = task
 
     def work_loop(self):
         command = self.parent_pipe.recv()
         while command != Cammand.CLIENT_QUIT:
             if command == Cammand.CLIENT_SEND_WEIGHT:
                 self.parent_pipe.send(len(self.task.trainset))
+                # print("Client sent weight")
+            elif command == Cammand.CLIENT_SET_MODEL:
+                self.task.model.load_state_dict(self.parent_pipe.recv())
+                # print("Client state dict loaded")
             elif command == Cammand.CLIENT_UPDATE:
+                # print("Client training...")
                 self.task.train()
+                # print("Client training done.")
             elif command == Cammand.CLIENT_SEND_MODEL:
                 model = self.task.get_model_by_state_dict()
                 self.parent_pipe.send(model)
+                # print("Client sent model")
             
             command = self.parent_pipe.recv()
 
@@ -74,7 +85,7 @@ class FedCLARAggregator(Aggregator):
         for i, pipe in enumerate(self.pipes):
             pipe.send(Cammand.CLIENT_SET_MODEL)
             pipe.send(self.task.model.state_dict())
-        self.response_list = np.full((len(self.pipes), ), dtype=bool, fill_value=False)
+        # self.response_list = np.full((len(self.pipes), ), dtype=bool, fill_value=False)
         # send training command to all trainers
         for pipe in self.pipes:
             pipe.send(Cammand.CLIENT_UPDATE)
@@ -84,9 +95,8 @@ class FedCLARAggregator(Aggregator):
         self.response_list = np.full((len(self.pipes), ), dtype=bool, fill_value=False)
         # wait for trainers' response
         while not np.all(self.response_list):
-            time.sleep(5)
             for i, pipe in enumerate(self.pipes):
-                if self.response_list[i] is False and pipe.poll():
+                if self.response_list[i] == False and pipe.poll(5): #  
                     self.update_list[i] = pipe.recv()
                     self.response_list[i] = True
         # aggregate

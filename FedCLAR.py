@@ -103,6 +103,8 @@ class FedCLAR(App):
 
 
 if __name__ == "__main__":
-    config = FedCLARConfig("./dataset/raw", FedCLARTaskType.SC, client_num=3, device="cuda")
+    config = FedCLARConfig("./dataset/raw", FedCLARTaskType.SC, 
+        clustering_iter=100, local_epochs=5, 
+        client_num=100, device="cuda")
     fedclar = FedCLAR(config)
     fedclar.run()
