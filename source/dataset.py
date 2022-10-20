@@ -75,13 +75,19 @@ class DatasetPartitioner(ABC):
     @staticmethod
     def save_subsets(subsets: 'list[Subset]', filename: str="./dataset/partitioned/"):
         for i, subset in enumerate(subsets):
-            torch.save(subset, filename + str(i) + ".pt")
+            data = []
+            for sample in subset:
+                data.append(sample)
+            data_num = len(data)
+            torch.save((data_num, data), filename + str(i) + ".pt")
 
     @staticmethod
     def load_subsets(subsets_num: int, filename: str="./dataset/partitioned/") -> 'list[Subset]':
         subsets = []
         for i in range(subsets_num):
-            subsets.append(torch.load(filename + str(i) + ".pt"))
+            data_num, data = torch.load(filename + str(i) + ".pt")
+            dataset = DatasetFromList(data)
+            subsets.append(Subset(data, list(range(data_num))))
         return subsets
 
     def __init__(self, dataset: Dataset, subset_num: int=1000, 
