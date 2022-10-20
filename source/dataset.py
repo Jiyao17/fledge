@@ -5,6 +5,7 @@ import enum
 
 from abc import ABC, abstractmethod
 
+import torch 
 import torchvision
 from torch.utils.data import Dataset, Subset
 import torchvision.transforms as tvtf
@@ -71,6 +72,17 @@ class DatasetPartitioner(ABC):
         cvs = stds / np.mean(distributions, axis=1)
         return cvs
 
+    @staticmethod
+    def save_subsets(subsets: 'list[Subset]', filename: str="./dataset/partitioned/"):
+        for i, subset in enumerate(subsets):
+            torch.save(subset, filename + str(i) + ".pt")
+
+    @staticmethod
+    def load_subsets(subsets_num: int, filename: str="./dataset/partitioned/") -> 'list[Subset]':
+        subsets = []
+        for i in range(subsets_num):
+            subsets.append(torch.load(filename + str(i) + ".pt"))
+        return subsets
 
     def __init__(self, dataset: Dataset, subset_num: int=1000, 
             data_num_range: 'tuple[int]'=(10, 50), 
@@ -85,6 +97,7 @@ class DatasetPartitioner(ABC):
         self.alpha_range = alpha_range
 
         self.distributions = None
+        self.subsets = None
 
     @abstractmethod
     def get_label_types(self) -> list:
@@ -163,6 +176,7 @@ class DatasetPartitioner(ABC):
             self.subsets.append(Subset(self.dataset, subset_indexes))
 
         return self.subsets
+
 
     # def check_distribution(self, num: int) -> np.ndarray:
     #     subsets = self.subsets[:num]
