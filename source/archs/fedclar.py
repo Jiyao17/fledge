@@ -62,6 +62,7 @@ class FedCLARAggregator(Aggregator):
         for i, pipe in enumerate(self.pipes):
             pipe.send(Cammand.CLIENT_SEND_WEIGHT)
             self.weights[i] = pipe.recv()
+        print("Clients data nums: ", self.weights)
 
 
     def work_loop(self):

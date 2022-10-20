@@ -59,6 +59,8 @@ class FedCLAR(App):
                     self.config.local_epochs, self.config.lr, self.config.batch_size,
                     self.config.device
                     )
+                # print(f'Client {i} has {len(user_subsets[i][0])} training samples')
+                # print(f'Client {i} has {len(user_subsets[i][1])} testing samples')
                 client = FedCLARTrainer(task, child_conn)
             clients.append(client)
 
@@ -100,7 +102,8 @@ class FedCLAR(App):
 
         for i in range(self.config.global_epochs - self.config.clustering_iter):
             aggregator.work_loop()
-
+            accu, loss = aggregator.task.test_model()
+            print(f'Epoch {i + self.config.clustering_iter} accu: {accu}, loss: {loss}')
 
 if __name__ == "__main__":
     config = FedCLARConfig("./dataset/raw", FedCLARTaskType.SC, 

@@ -316,7 +316,7 @@ class SCDatasetPartitionerByUser(SCDatasetPartitioner):
         user_subsets = []
 
         for speaker in distribution.keys():
-            if sum(distribution[speaker]) >= data_num_threshold:
+            if len(distribution[speaker]) >= data_num_threshold:
                 # randomize user data
                 np.random.shuffle(distribution[speaker])
                 # split user data into train and test
