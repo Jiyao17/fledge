@@ -38,12 +38,17 @@ class FedCLAR(App):
 
     def __init__(self, config: FedCLARConfig):
         self.config = config
-        
-    def spawn_clients(self)-> tuple[list[FedCLARTrainer], list[Connection]]:
-        # create users subsets
+
         if self.config.task_type == FedCLARTaskType.SC:
             trainset, testset = SCTaskHelper.get_datasets(self.config.data_dir)
-            partitioner = SCDatasetPartitionerByUser(trainset, None, None, None)
+        self.trainset = trainset
+        self.testset = testset
+
+        
+    def spawn_clients(self)-> 'tuple[list[FedCLARTrainer], list[Connection]]':
+        # create users subsets
+        if self.config.task_type == FedCLARTaskType.SC:
+            partitioner = SCDatasetPartitionerByUser(self.trainset, None, None, None)
         user_subsets = partitioner.get_pfl_subsets(100, 0.3)
         # Spawn clients
         clients: list[FedCLARTrainer] = []
@@ -64,7 +69,7 @@ class FedCLAR(App):
     def spawn_aggregator(self, clients_pipes):
         # create the final aggregator
         if self.config.task_type == FedCLARTaskType.SC:
-            agg_task = SCAggregatorTask()
+            agg_task = SCAggregatorTask(testset=self.testset)
             aggregator = FedCLARAggregator(agg_task, self.config.global_epochs,
                 self.config.device, clients_pipes, None, False)
 
@@ -86,8 +91,12 @@ class FedCLAR(App):
             clients_procs.append(client_proc)
         
         # launch aggregator
+        aggregator.init_params()
         for i in range(self.config.clustering_iter):
             aggregator.work_loop()
+            accu, loss = aggregator.task.test_model()
+            print(f'Epoch {i} accu: {accu}, loss: {loss}')
+
 
         self.clustering()
 

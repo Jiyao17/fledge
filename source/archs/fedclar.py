@@ -3,8 +3,10 @@ import time
 import numpy as np
 import enum
 
+from multiprocessing.connection import Connection
+
 from ..node import Trainer, Aggregator
-from ..task import TrainerTask, AggregatorTask
+from ..tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
 
 
 class Cammand(enum.Enum):
@@ -23,11 +25,13 @@ class Cammand(enum.Enum):
 
 class FedCLARTrainer(Trainer):
 
+
     def work_loop(self):
         command = self.parent_pipe.recv()
         while command != Cammand.CLIENT_QUIT:
-
-            if command == Cammand.CLIENT_UPDATE:
+            if command == Cammand.CLIENT_SEND_WEIGHT:
+                self.parent_pipe.send(len(self.task.trainset))
+            elif command == Cammand.CLIENT_UPDATE:
                 self.task.train()
             elif command == Cammand.CLIENT_SEND_MODEL:
                 model = self.task.get_model_by_state_dict()
@@ -38,13 +42,15 @@ class FedCLARTrainer(Trainer):
 
 class FedCLARAggregator(Aggregator):
 
-    def __init__(self, task: AggregatorTask, epochs: int, device: str, trainer_pipes: 'list[Connection]', parent_pipe: Connection = None, verbose=False):
+    def __init__(self, task: SCAggregatorTask, epochs: int, device: str, trainer_pipes: 'list[Connection]', parent_pipe: Connection = None, verbose=False):
         super().__init__(task, epochs, device, trainer_pipes, parent_pipe, verbose)
+        self.task = task
 
+    def init_params(self):
+        # must call this function after all trainers procs started and before work_loop
         for i, pipe in enumerate(self.pipes):
             pipe.send(Cammand.CLIENT_SEND_WEIGHT)
             self.weights[i] = pipe.recv()
-        self.weights /= np.sum(self.weights)
 
 
     def work_loop(self):
@@ -60,12 +66,11 @@ class FedCLARAggregator(Aggregator):
             #     command = self.parent_pipe.recv()
             pass
         else:
-            for i in range(self.epochs):
-                self.final_aggregator_work_loop()
+            self.final_aggregator_work_loop()
 
 
     def final_aggregator_work_loop(self):
-        # set trainers models
+        # distribute trainers models
         for i, pipe in enumerate(self.pipes):
             pipe.send(Cammand.CLIENT_SET_MODEL)
             pipe.send(self.task.model.state_dict())

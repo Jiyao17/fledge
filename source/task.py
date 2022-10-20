@@ -62,7 +62,7 @@ class AggregatorTask(ABC):
         self.model: nn.Module = None
 
     # @abstractmethod
-    def aggregate(self, state_dicts: list[dict], weights: list[float]):
+    def aggregate(self, state_dicts: 'list[dict]', weights: 'list[float]'):
         avg_state_dict = deepcopy(state_dicts[0])
         for key in avg_state_dict.keys():
             avg_state_dict[key] = avg_state_dict[key] * weights[0]
