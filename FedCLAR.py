@@ -2,20 +2,18 @@
 
 # FedCLAR implementation, based on Speech Commands Dataset
 
-from asyncio import Task
-import enum
 
 from multiprocessing import Process, Pipe, Queue
 from multiprocessing.connection import Connection
 
 from source.tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
-from source.node import Trainer, Aggregator
 from source.app import TaskType, Config, App
 from source.archs.fedclar import FedCLARAggregator, FedCLARTrainer
 
 
 class FedCLARTaskType(TaskType):
     SC = 0 # Speech Commands Recognition
+
 
 class FedCLARConfig(Config):
     def __init__(self,
@@ -41,10 +39,10 @@ class FedCLAR(App):
 
         if self.config.task_type == FedCLARTaskType.SC:
             trainset, testset = SCTaskHelper.get_datasets(self.config.data_dir)
+            
         self.trainset = trainset
         self.testset = testset
-
-        
+    
     def spawn_clients(self)-> 'tuple[list[FedCLARTrainer], list[Connection]]':
         # create users subsets
         if self.config.task_type == FedCLARTaskType.SC:
@@ -105,6 +103,6 @@ class FedCLAR(App):
 
 
 if __name__ == "__main__":
-    config = FedCLARConfig("./dataset/raw", FedCLARTaskType.SC, client_num=10)
+    config = FedCLARConfig("./dataset/raw", FedCLARTaskType.SC, client_num=3, device="cuda")
     fedclar = FedCLAR(config)
     fedclar.run()
