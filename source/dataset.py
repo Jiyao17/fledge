@@ -4,6 +4,7 @@ import json
 import enum
 
 from abc import ABC, abstractmethod
+from typing import Sequence
 
 import torch 
 import torchvision
@@ -31,6 +32,22 @@ import matplotlib.pyplot as plt
 #     'on', 'one', 'right', 'seven', 'sheila', 'six', 'stop', 'three', 'tree', 'two', 'up', 
 #     'visual', 'wow', 'yes', 'zero']
 
+
+class RealSubset(Subset):
+    def __init__(self, dataset: Dataset, indices: Sequence[int]):
+        self.dataset = []
+        for i in indices:
+            self.dataset.append(dataset[i])
+        self.indices = range(len(indices))
+            
+
+    def __getitem__(self, idx):
+        if isinstance(idx, list):
+            return [self.dataset[i] for i in idx]
+        return self.dataset[idx]
+
+    def __len__(self):
+        return len(self.indices)
 
 
 class DatasetPartitioner(ABC):
@@ -73,21 +90,19 @@ class DatasetPartitioner(ABC):
         return cvs
 
     @staticmethod
-    def save_subsets(subsets: 'list[Subset]', filename: str="./dataset/partitioned/"):
-        for i, subset in enumerate(subsets):
-            data = []
-            for sample in subset:
-                data.append(sample)
-            data_num = len(data)
-            torch.save((data_num, data), filename + str(i) + ".pt")
+    def save_subsets(subsets: 'list[tuple[Subset, Subset]]', filename: str):
+        for i, subset_tuple in enumerate(subsets):
+            real_subtrainset = RealSubset(subset_tuple[0].dataset, subset_tuple[0].indices)
+            real_subtestset = RealSubset(subset_tuple[1].dataset, subset_tuple[1].indices)
+            torch.save((real_subtrainset, real_subtestset), filename + str(i) + ".pt")
 
     @staticmethod
-    def load_subsets(subsets_num: int, filename: str="./dataset/partitioned/") -> 'list[Subset]':
+    def load_subsets(subsets_num: int, filename: str) -> 'list[tuple[Subset, Subset]]':
         subsets = []
         for i in range(subsets_num):
-            data_num, data = torch.load(filename + str(i) + ".pt")
-            dataset = DatasetFromList(data)
-            subsets.append(Subset(data, list(range(data_num))))
+            real_subtrainset, real_subtestset = torch.load(filename + str(i) + ".pt")
+            subsets.append((real_subtrainset, real_subtestset))
+
         return subsets
 
     def __init__(self, dataset: Dataset, subset_num: int=1000, 
@@ -267,4 +282,5 @@ class DatasetReader:
                 download=True, transform=transform_func)
 
         return (trainset, testset)
+
 
