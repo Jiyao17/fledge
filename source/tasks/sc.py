@@ -157,12 +157,12 @@ class SCTaskHelper:
         """
         loader_type: train or test
         """
-        if device == "cuda":
-            num_workers = 1
-            pin_memory = True
-        else:
-            num_workers = 0
-            pin_memory = False
+        # if device == "cuda":
+        #     num_workers = 1
+        #     pin_memory = True
+        # else:
+        num_workers = 0
+        pin_memory = False
 
         if loader_type != "train":
             dataloader = DataLoader(
