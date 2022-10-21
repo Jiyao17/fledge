@@ -47,7 +47,7 @@ class TrainerTask(ABC):
 
     def set_model_by_state_dict(self, state_dict: dict):
         self.model.load_state_dict(state_dict)
-    
+
 
     # def save(self, path: str):
     #     pass

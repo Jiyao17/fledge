@@ -97,23 +97,14 @@ class DatasetPartitioner(ABC):
         return cvs
 
     @staticmethod
-    def save_subsets(subsets: 'list[tuple[Subset, Subset]]', dir: str):
-        for i, subset_tuple in enumerate(subsets):
-            real_subtrainset = RealSubset(subset_tuple[0].dataset, subset_tuple[0].indices)
-            real_subtestset = RealSubset(subset_tuple[1].dataset, subset_tuple[1].indices)
-            real_subtrainset.save(dir + f"/subtrainset_{i}.pt")
-            real_subtestset.save(dir + f"/subtestset_{i}.pt")
-                
+    def save_subset(subset: Subset, filename: str):
+        real_subset = RealSubset(subset.dataset, subset.indices)
+        real_subset.save(filename)
 
     @staticmethod
-    def load_subsets(subsets_num: int, dir: str) -> 'list[tuple[Dataset, Dataset]]':
-        subsets = []
-        for i in range(subsets_num):
-            subtrainset = RealSubset.load(dir + f"/subtrainset_{i}.pt")
-            subtestset = RealSubset.load(dir + f"/subtestset_{i}.pt")
-            subsets.append((subtrainset, subtestset))
-
-        return subsets
+    def load_subset(filename:str) -> 'list[tuple[Dataset, Dataset]]':
+        dataset = RealSubset.load(filename)
+        return dataset
 
     def __init__(self, dataset: Dataset, subset_num: int=1000, 
             data_num_range: 'tuple[int]'=(10, 50), 
