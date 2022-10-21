@@ -40,7 +40,7 @@ class FedCLAR(App):
         self.config = config
 
         if self.config.task_type == FedCLARTaskType.SC:
-            trainset, testset = SCTaskHelper.get_datasets(self.config.data_dir)
+            trainset, testset = SCTaskHelper.get_raw_datasets(self.config.data_dir)
             
         self.trainset = trainset
         self.testset = testset

@@ -35,9 +35,7 @@ import matplotlib.pyplot as plt
 
 class RealSubset(Subset):
     def __init__(self, dataset: Dataset, indices: Sequence[int]):
-        self.dataset = []
-        for i in indices:
-            self.dataset.append(dataset[i])
+        self.dataset = [ dataset[i] for i in indices ]
         self.indices = range(len(indices))
             
 
@@ -48,6 +46,15 @@ class RealSubset(Subset):
 
     def __len__(self):
         return len(self.indices)
+
+    def save(self, path: str):
+        torch.save(self.dataset, path)
+
+    @staticmethod
+    def load(path: str):
+        dataset = torch.load(path)
+        indices = range(len(dataset))
+        return RealSubset(dataset, indices)
 
 
 class DatasetPartitioner(ABC):
@@ -90,18 +97,21 @@ class DatasetPartitioner(ABC):
         return cvs
 
     @staticmethod
-    def save_subsets(subsets: 'list[tuple[Subset, Subset]]', filename: str):
+    def save_subsets(subsets: 'list[tuple[Subset, Subset]]', dir: str):
         for i, subset_tuple in enumerate(subsets):
             real_subtrainset = RealSubset(subset_tuple[0].dataset, subset_tuple[0].indices)
             real_subtestset = RealSubset(subset_tuple[1].dataset, subset_tuple[1].indices)
-            torch.save((real_subtrainset, real_subtestset), filename + str(i) + ".pt")
+            real_subtrainset.save(dir + f"/subtrainset_{i}.pt")
+            real_subtestset.save(dir + f"/subtestset_{i}.pt")
+                
 
     @staticmethod
-    def load_subsets(subsets_num: int, filename: str) -> 'list[tuple[Subset, Subset]]':
+    def load_subsets(subsets_num: int, dir: str) -> 'list[tuple[Dataset, Dataset]]':
         subsets = []
         for i in range(subsets_num):
-            real_subtrainset, real_subtestset = torch.load(filename + str(i) + ".pt")
-            subsets.append((real_subtrainset, real_subtestset))
+            subtrainset = RealSubset.load(dir + f"/subtrainset_{i}.pt")
+            subtestset = RealSubset.load(dir + f"/subtestset_{i}.pt")
+            subsets.append((subtrainset, subtestset))
 
         return subsets
 

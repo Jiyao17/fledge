@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from torch import nn, optim, Tensor
 
 from ..task import TrainerTask, AggregatorTask
-from ..dataset import DatasetPartitioner
+from ..dataset import DatasetPartitioner, RealSubset
 
 import numpy as np
 
@@ -126,7 +126,7 @@ class SCTaskHelper:
 
 
     @staticmethod
-    def get_datasets(data_path: str) -> 'tuple[Dataset, Dataset]':
+    def get_raw_datasets(data_path: str) -> 'tuple[Dataset, Dataset]':
         testset = SCTaskHelper.SubsetSC("testing", data_path)
         trainset = SCTaskHelper.SubsetSC("training", data_path)
 
@@ -321,8 +321,8 @@ class SCDatasetPartitionerByUser(SCDatasetPartitioner):
                 np.random.shuffle(distribution[speaker])
                 # split user data into train and test
                 test_num = int(len(distribution[speaker]) * test_frac)
-                trainset = Subset(self.dataset, distribution[speaker][test_num:])
-                testset = Subset(self.dataset, distribution[speaker][:test_num])
+                trainset = RealSubset(self.dataset, distribution[speaker][test_num:])
+                testset = RealSubset(self.dataset, distribution[speaker][:test_num])
 
                 user_subsets.append((trainset, testset))
         
