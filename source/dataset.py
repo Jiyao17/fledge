@@ -96,7 +96,7 @@ class DatasetPartitioner(ABC):
     @staticmethod
     def load_dataset(filename: str) -> Dataset:
         return torch.load(filename)
-        
+
     def __init__(self, dataset: Dataset, subset_num: int=1000, 
             data_num_range: 'tuple[int]'=(10, 50), 
             alpha_range: 'tuple[float, float]'=(0.05, 0.5),
