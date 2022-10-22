@@ -54,7 +54,7 @@ class FedCLAR(App):
             # print(f'Client {i} has {len(user_subsets[i][0])} training samples')
             # print(f'Client {i} has {len(user_subsets[i][1])} testing samples')
             client = FedCLARTrainer(task, child_conn)
-            client.work_loop()
+            client.exec_command()
 
         # create users subsets
         if self.config.task_type == FedCLARTaskType.SC:

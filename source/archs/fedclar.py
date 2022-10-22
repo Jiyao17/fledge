@@ -32,35 +32,35 @@ class FedCLARTrainer(Trainer):
         super().__init__(task, pipe)
         self.task = task
 
-    def work_loop(self):
+    def exec_command(self, command: Cammand):
         command = self.parent_pipe.recv()
-        while command != Cammand.CLIENT_QUIT:
-            if command == Cammand.CLIENT_SEND_WEIGHT:
-                self.parent_pipe.send(len(self.task.trainset))
-                print("Client sent weight")
-            elif command == Cammand.CLIENT_SET_MODEL:
-                self.task.model.load_state_dict(self.parent_pipe.recv())
-                print("Client state dict loaded")
-            elif command == Cammand.CLIENT_UPDATE:
-                print("Client training...")
-                self.task.train()
-                print("Client training done.")
-            elif command == Cammand.CLIENT_SEND_MODEL:
-                model = self.task.get_model_by_state_dict()
-                self.parent_pipe.send(model)
-                print("Client sent model")
-            elif command == Cammand.CLIENT_SEND_TEST_RESULTS:
-                self.parent_pipe.send(self.task.test())
-                print("Client sent test results")
-            
-            command = self.parent_pipe.recv()
+        # while command != Cammand.CLIENT_QUIT:
+        if command == Cammand.CLIENT_SEND_WEIGHT:
+            self.parent_pipe.send(len(self.task.trainset))
+            print("Client sent weight")
+        elif command == Cammand.CLIENT_SET_MODEL:
+            self.task.model.load_state_dict(self.parent_pipe.recv())
+            print("Client state dict loaded")
+        elif command == Cammand.CLIENT_UPDATE:
+            print("Client training...")
+            self.task.train()
+            print("Client training done.")
+        elif command == Cammand.CLIENT_SEND_MODEL:
+            model = self.task.get_model()
+            self.parent_pipe.send(model)
+            print("Client sent model")
+        elif command == Cammand.CLIENT_SEND_TEST_RESULTS:
+            self.parent_pipe.send(self.task.test())
+            print("Client sent test results")
+        
+        # command = self.parent_pipe.recv()
 
-        self.parent_pipe.close()
+        # self.parent_pipe.close()
 
 
 class FedCLARAggregator(Aggregator):
 
-    def __init__(self, task: SCAggregatorTask, epochs: int, device: str, trainer_pipes: 'list[Connection]', parent_pipe: Connection = None, verbose=False):
+    def __init__(self, task: SCAggregatorTask, epochs: int, device: str, trainers: 'list[Connection]', parent_pipe: Connection = None, verbose=False):
         super().__init__(task, epochs, device, trainer_pipes, parent_pipe, verbose)
         self.task = task
 

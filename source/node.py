@@ -9,51 +9,43 @@ import time
 
 import numpy as np
 
-from .task import TrainerTask, AggregatorTask
+from .task import Task, TrainerTask, AggregatorTask
+
+class Command():
+    pass
 
 
-
-
-class Trainer(ABC):
-    def __init__(self, task: TrainerTask, parent_pipe: Connection,):
-        # pipe for communication with aggregator
-        self.parent_pipe = parent_pipe
-        # everything related to training
+class Node(ABC):
+    def __init__(self, task: Task):
         self.task = task
 
     @abstractmethod
-    def work_loop(self):
+    def exec_command(self, command: Command):
         pass
-            
 
-class Aggregator(ABC):
-    """
-    1 to multiple aggregator
-    """
+class Trainer(Node):
+    def __init__(self, task: TrainerTask, parent: Node,):
+        super().__init__(task, )
+        self.parent = parent
+
+
+class Aggregator(Node):
     
-    def __init__(self, task: AggregatorTask, epochs: int, device: str,
-        trainer_pipes: 'list[Connection]', parent_pipe: Connection=None, 
-        verbose=False
+    def __init__(self, task: AggregatorTask,
+        parent: Node, children: list[Node],
         ):
-        # everything related to aggregation
-        self.task = task
-        self.epochs = epochs
-        self.device = device
-
-        # pipes for communication with trainers
-        self.pipes = trainer_pipes
-        self.final_aggregator = True if parent_pipe is None else False
-        self.parent_pipe = parent_pipe
-        self.verbose = verbose
-
+        super().__init__(task)
+        self.parent = parent
+        self.children = children
+        self.final_aggregator = True if parent is None else False
         # activated trainers in each round
-        self.activation_list = np.full((len(self.pipes), ), dtype=bool, fill_value=False)
-        # responeded trainers in each round
-        self.response_list = np.full((len(self.pipes), ), dtype=bool, fill_value=False)
-        self.update_list = [None] * len(self.pipes)
+        # self.activation_list = np.full((len(self.children), ), dtype=bool, fill_value=False)
+        # # responeded trainers in each round
+        # self.response_list = np.full((len(self.children), ), dtype=bool, fill_value=False)
+        # self.update_list = [None] * len(self.children)
         # weights for each trainer
-        self.weights = np.ndarray((len(self.pipes), ), dtype=float)
+        self.weights = np.zeros((len(self.children), ), dtype=float)
 
     @abstractmethod
-    def work_loop(self):
+    def update(self):
         pass

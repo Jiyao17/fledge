@@ -98,13 +98,12 @@ class DatasetPartitioner(ABC):
 
     @staticmethod
     def save_subset(subset: Subset, filename: str):
-        real_subset = RealSubset(subset.dataset, subset.indices)
-        real_subset.save(filename)
+        # real_subset = RealSubset(subset.dataset, subset.indices)
+        torch.save(subset, filename)
 
     @staticmethod
-    def load_subset(filename:str) -> 'list[tuple[Dataset, Dataset]]':
-        dataset = RealSubset.load(filename)
-        return dataset
+    def load_subset(filename:str) -> 'Dataset':
+        return torch.load(filename)
 
     def __init__(self, dataset: Dataset, subset_num: int=1000, 
             data_num_range: 'tuple[int]'=(10, 50), 
