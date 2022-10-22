@@ -85,27 +85,3 @@ class AggregatorTask(ABC):
         #     for param in self.model.parameters():
         #         param.data += update[param]
 
-
-class HFLTrainerTask(TrainerTask):
-    def __init__(self, model: nn.Module, trainset: Dataset, testset: Dataset,
-        epochs: int, lr: float, batch_size: int,
-        device: str
-        ):
-        super().__init__(model, trainset, testset, epochs, lr, batch_size, device)
-
-    def train(self):
-        pass
-
-    def report_update(self):
-        pass
-
-
-class HFLAggregatorTask(AggregatorTask):
-    def __init__(self, model: nn.Module, dataset: Dataset, ):
-        super().__init__(model, dataset)
-
-    def aggregate(self, ):
-        pass
-
-    def update(self, updates: 'list[dict]'):
-        pass

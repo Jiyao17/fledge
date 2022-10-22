@@ -90,21 +90,13 @@ class DatasetPartitioner(ABC):
         return cvs
 
     @staticmethod
-    def save_subsets(subsets: 'list[tuple[Subset, Subset]]', filename: str):
-        for i, subset_tuple in enumerate(subsets):
-            real_subtrainset = RealSubset(subset_tuple[0].dataset, subset_tuple[0].indices)
-            real_subtestset = RealSubset(subset_tuple[1].dataset, subset_tuple[1].indices)
-            torch.save((real_subtrainset, real_subtestset), filename + str(i) + ".pt")
+    def save_dataset(dataset: Dataset, filename: str):
+        torch.save(dataset, filename)
 
     @staticmethod
-    def load_subsets(subsets_num: int, filename: str) -> 'list[tuple[Subset, Subset]]':
-        subsets = []
-        for i in range(subsets_num):
-            real_subtrainset, real_subtestset = torch.load(filename + str(i) + ".pt")
-            subsets.append((real_subtrainset, real_subtestset))
-
-        return subsets
-
+    def load_dataset(filename: str) -> Dataset:
+        return torch.load(filename)
+        
     def __init__(self, dataset: Dataset, subset_num: int=1000, 
             data_num_range: 'tuple[int]'=(10, 50), 
             alpha_range: 'tuple[float, float]'=(0.05, 0.5),

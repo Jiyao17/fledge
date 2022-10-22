@@ -3,9 +3,6 @@
 # FedCLAR implementation, based on Speech Commands Dataset
 
 
-from torch.multiprocessing import Process, Pipe
-from multiprocessing.connection import Connection
-
 from source.tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
 from source.app import TaskType, Config, App
 from source.archs.fedclar import FedCLARAggregator, FedCLARTrainer
@@ -45,41 +42,32 @@ class FedCLAR(App):
         self.trainset = trainset
         self.testset = testset
     
-    def spawn_clients(self)-> 'tuple[list[FedCLARTrainer], list[Connection]]':
-        def spawn_client(trainset, testset, child_conn: Connection, config: FedCLARConfig):
-            task = SCTrainerTask(trainset, testset, 
-                config.local_epochs, config.lr, config.batch_size,
-                config.device
-                )
-            # print(f'Client {i} has {len(user_subsets[i][0])} training samples')
-            # print(f'Client {i} has {len(user_subsets[i][1])} testing samples')
-            client = FedCLARTrainer(task, child_conn)
-            client.work_loop()
-
+    def spawn_clients(self, parent: FedCLARAggregator=None)-> 'list[FedCLARTrainer]':
         # create users subsets
         if self.config.task_type == FedCLARTaskType.SC:
             partitioner = SCDatasetPartitionerByUser(self.trainset, None, None, None)
         user_subsets = partitioner.get_pfl_subsets(100, 0.3)
         # Spawn clients
-        client_procs: list[Process] = []
-        clients_pipes: list[Connection] = []
+        clients: list[FedCLARTrainer] = []
         for i in range(self.config.client_num):
-            parent_conn, child_conn = Pipe()
-            clients_pipes.append(parent_conn)
+            trainset = user_subsets[i][0]
+            testset = user_subsets[i][1]
             if self.config.task_type == FedCLARTaskType.SC:
-                proc = Process(target=spawn_client, 
-                    args=(user_subsets[i][0], user_subsets[i][1], child_conn, self.config))
-                proc.start()
-            client_procs.append(proc)
+                task = SCTrainerTask(trainset, testset, 
+                    config.local_epochs, config.lr, config.batch_size,
+                    config.device
+                    )
+                client = FedCLARTrainer(task, parent)
+            clients.append(client)
 
-        return client_procs, clients_pipes
-    
-    def create_aggregator(self, clients_pipes):
+        return clients
+
+    def create_aggregator(self, children: 'list[FedCLARTrainer]'):
         # create the final aggregator
         if self.config.task_type == FedCLARTaskType.SC:
             agg_task = SCAggregatorTask(testset=self.testset)
             aggregator = FedCLARAggregator(agg_task, self.config.global_epochs,
-                self.config.device, clients_pipes, None, False)
+                self.config.device, children, None)
 
         return aggregator
 
@@ -90,14 +78,10 @@ class FedCLAR(App):
         # def spawn_client(client: FedCLARTrainer):
         #     client.work_loop()
         
-        clients_procs, clients_pipes = self.spawn_clients()
-        aggregator = self.create_aggregator(clients_pipes)
-
-        # start clients
-        clients_procs: list[Process] = []
-        for client_proc in clients_procs:
-            if client_proc.is_alive() == False:
-                client_proc.start()
+        clients = self.spawn_clients()
+        aggregator = self.create_aggregator(clients)
+        for client in clients:
+            client.parent = aggregator
         
         # launch aggregator
         aggregator.init_params()
@@ -110,6 +94,7 @@ class FedCLAR(App):
                 accu, loss = aggregator.task.test()
                 print(f'Epoch {i}, global accu: {accu}, loss: {loss}')
             else:
+                print(f'Epoch {i}')
                 aggregator.work_loop(False)
 
         self.clustering()
@@ -122,9 +107,10 @@ class FedCLAR(App):
         # stop clients
         aggregator.stop_all_trainers()
 
+
 if __name__ == "__main__":
     config = FedCLARConfig("./dataset/raw", FedCLARTaskType.SC, 
         clustering_iter=100, local_epochs=5, 
-        client_num=5, device="cuda")
+        client_num=100, device="cuda")
     fedclar = FedCLAR(config)
     fedclar.run()
