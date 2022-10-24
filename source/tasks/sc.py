@@ -379,8 +379,9 @@ class SCTrainerTask(TrainerTask):
                 self.optimizer.step()
                 # self.scheduler.step()
 
-    def test(self):
-        return SCTaskHelper.test_model(self.model, self.test_dataloader, self.device)
+    def test(self) -> 'tuple[float, float]':
+        accu, loss = SCTaskHelper.test_model(self.model, self.test_dataloader, self.device)
+        return accu, loss
 
 
 class SCAggregatorTask(AggregatorTask):
