@@ -1,4 +1,4 @@
 
-dataset/raw/
-dataset/partitioned/
+datasets/raw/
+datasets/partitioned/
 python/
