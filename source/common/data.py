@@ -14,40 +14,22 @@ import torchvision.transforms as tvtf
 import numpy as np
 import matplotlib.pyplot as plt
 
-# def get_CIFAR_label_types(dataset: Dataset) -> list:
-#     """
-#     CIFAR
-#     """
-#     targets = dataset.targets
-#     if type(targets) is not list:
-#         targets = targets.tolist()
-#     labels = list(set(targets))
-#     # can be deleted, does not matter but more clear if kept
-#     labels.sort()
 
-#     return labels
-
-# speech_command_labels: list = ['backward', 'bed', 'bird', 'cat', 'dog', 'down', 'eight', 'five', 'follow',
-#     'forward', 'four', 'go', 'happy', 'house', 'learn', 'left', 'marvin', 'nine', 'no', 'off',
-#     'on', 'one', 'right', 'seven', 'sheila', 'six', 'stop', 'three', 'tree', 'two', 'up', 
-#     'visual', 'wow', 'yes', 'zero']
-
-
-class RealSubset(Subset):
-    def __init__(self, dataset: Dataset, indices: Sequence[int]):
-        self.dataset = []
-        for i in indices:
-            self.dataset.append(dataset[i])
-        self.indices = range(len(indices))
+# class RealSubset(Subset):
+#     def __init__(self, dataset: Dataset, indices: Sequence[int]):
+#         self.dataset = []
+#         for i in indices:
+#             self.dataset.append(dataset[i])
+#         self.indices = range(len(indices))
             
 
-    def __getitem__(self, idx):
-        if isinstance(idx, list):
-            return [self.dataset[i] for i in idx]
-        return self.dataset[idx]
+#     def __getitem__(self, idx):
+#         if isinstance(idx, list):
+#             return [self.dataset[i] for i in idx]
+#         return self.dataset[idx]
 
-    def __len__(self):
-        return len(self.indices)
+#     def __len__(self):
+#         return len(self.indices)
 
 
 class DatasetPartitioner(ABC):

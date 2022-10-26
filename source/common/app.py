@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 import enum
 
-from .dataset import DatasetPartitioner, DatasetReader
+from .data import DatasetPartitioner, DatasetReader
 
 
 class TaskType(enum.Enum):

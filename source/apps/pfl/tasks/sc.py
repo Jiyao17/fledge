@@ -15,8 +15,8 @@ from torchaudio.transforms import Resample
 import torch.nn.functional as F
 from torch import nn, optim, Tensor
 
-from ..task import TrainerTask, AggregatorTask
-from ..dataset import DatasetPartitioner
+from ....common.arch import TrainerTask, AggregatorTask
+from ....common.data import DatasetPartitioner
 
 import numpy as np
 

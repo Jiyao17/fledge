@@ -15,7 +15,10 @@ from torch.utils.data.dataset import Dataset
 
 
 
-class TrainerTask(ABC):
+class Task(ABC):
+    """
+    Everthing about model/training
+    """
     def __init__(self, trainset: Dataset, testset: Dataset,
         epochs: int, lr: float, batch_size: int,
         device: str
@@ -30,7 +33,7 @@ class TrainerTask(ABC):
         self.device = device
 
     @abstractmethod
-    def train(self):
+    def update(self):
         pass
 
     # @abstractmethod
@@ -53,16 +56,20 @@ class TrainerTask(ABC):
     #     pass
 
 
-class AggregatorTask(ABC):
+class AggregatorTask(Task):
+    """
+    Everything about the model on the aggregator side
+    """
 
-    def __init__(self, trainset: Dataset=None, testset: Dataset=None,):
-        self.trainset = trainset
-        self.testset = testset
+    def __init__(self, trainset: Dataset, testset: Dataset,
+        epochs: int, lr: float, batch_size: int,
+        device: str
+        ):
+        super().__init__(trainset, testset, epochs, lr, batch_size, device)
 
-        self.model: nn.Module = None
 
-    # @abstractmethod
-    def aggregate(self, state_dicts: 'list[dict]', weights: 'list[float]'):
+    def model_avg(self, state_dicts: 'list[dict]', weights: 'list[float]') \
+        -> dict:
         avg_state_dict = deepcopy(state_dicts[0])
         for key in avg_state_dict.keys():
             avg_state_dict[key] = avg_state_dict[key] * weights[0]
@@ -71,17 +78,9 @@ class AggregatorTask(ABC):
             for i in range(1, len(state_dicts)):
                 avg_state_dict[key] += state_dicts[i][key] * weights[i]
         
-        self.model.load_state_dict(avg_state_dict)
+        return avg_state_dict
         
-
-    # def save(self, path: str):
-    #     pass
-
-    # @abstractmethod
-    # def update(self, updates: 'list[dict]'):
-    #     pass
-        # state_dict = deepcopy(self.model.state_dict())
-        # for update in updates:
-        #     for param in self.model.parameters():
-        #         param.data += update[param]
-
+    def update(self, state_dicts: 'list[dict]', weights: 'list[float]'):
+        avg_state_dict = self.model_avg(state_dicts, weights)
+        self.set_model_by_state_dict(avg_state_dict)
+        # return self.get_model_by_state_dict()

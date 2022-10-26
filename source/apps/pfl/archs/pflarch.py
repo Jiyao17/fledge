@@ -11,7 +11,7 @@ from multiprocessing.connection import Connection
 
 import torch
 
-from ..node import Trainer, Aggregator
+from ....common.arch import Node, Aggregator
 from ..tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
 
 
@@ -31,7 +31,7 @@ class Cammand(enum.Enum):
     AGGREGATOR_QUIT = 19
 
 
-class FedCLARTrainer(Trainer):
+class FedCLARTrainer(Node):
 
     def __init__(self, task: SCTrainerTask, parent: Aggregator):
         super().__init__(task, parent)
@@ -58,10 +58,10 @@ class FedCLARTrainer(Trainer):
             
 
 
-class FedCLARAggregator(Aggregator):
+class FLAggregator(Aggregator):
 
     def __init__(self, task: SCAggregatorTask, epochs: int, device: str, 
-            children: 'list[Trainer]', parent: Aggregator = None,
+            children: 'list[Node]', parent: Aggregator = None,
             ):
         super().__init__(task, epochs, device, children, parent)
         self.task = task
@@ -118,7 +118,7 @@ class FedCLARAggregator(Aggregator):
                 self.personal_test_results[i][1] = loss
                 self.response_list[i] = True
         # aggregate
-        self.task.aggregate(self.update_list, self.weights/np.sum(self.weights))
+        self.task.model_avg(self.update_list, self.weights/np.sum(self.weights))
 
     def stop_all_trainers(self):
         for pipe in self.children:

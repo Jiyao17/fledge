@@ -3,9 +3,9 @@
 # FedCLAR implementation, based on Speech Commands Dataset
 
 
-from source.tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
-from source.app import TaskType, Config, App
-from source.archs.fedclar import FedCLARAggregator, FedCLARTrainer
+from .tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
+from ...common.app import TaskType, Config, App
+from .archs.pflarch import FLAggregator, FedCLARTrainer
 
 import numpy as np
 
@@ -42,7 +42,7 @@ class FedCLAR(App):
         self.trainset = trainset
         self.testset = testset
     
-    def spawn_clients(self, parent: FedCLARAggregator=None)-> 'list[FedCLARTrainer]':
+    def spawn_clients(self, parent: FLAggregator=None)-> 'list[FedCLARTrainer]':
         # create users subsets
         if self.config.task_type == FedCLARTaskType.SC:
             partitioner = SCDatasetPartitionerByUser(self.trainset, None, None, None)
@@ -66,7 +66,7 @@ class FedCLAR(App):
         # create the final aggregator
         if self.config.task_type == FedCLARTaskType.SC:
             agg_task = SCAggregatorTask(testset=self.testset)
-            aggregator = FedCLARAggregator(agg_task, self.config.global_epochs,
+            aggregator = FLAggregator(agg_task, self.config.global_epochs,
                 self.config.device, children, None)
 
         return aggregator
