@@ -15,7 +15,7 @@ from ....common.arch import Node, Aggregator
 from ..tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
 
 
-class Cammand(enum.Enum):
+class HFLCammand(enum.Enum):
     # Cammands
     CLIENT_SEND_DATA_NUM = 0
     CLIENT_UPDATE = 1
@@ -31,28 +31,28 @@ class Cammand(enum.Enum):
     AGGREGATOR_QUIT = 19
 
 
-class FedCLARTrainer(Node):
+class HFLTrainer(Node):
 
     def __init__(self, task: SCTrainerTask, parent: Aggregator):
         super().__init__(task, parent)
         self.task: SCTrainerTask
 
-    def exec_command(self, command: Cammand, data=None):
-        if command == Cammand.CLIENT_SEND_DATA_NUM:
+    def exec_command(self, command: HFLCammand, data=None):
+        if command == HFLCammand.CLIENT_SEND_DATA_NUM:
             return len(self.task.trainset)
             # print("Client sent weight")
-        elif command == Cammand.CLIENT_SET_MODEL:
+        elif command == HFLCammand.CLIENT_SET_MODEL:
             self.task.model.load_state_dict(data)
             # print("Client state dict loaded")
-        elif command == Cammand.CLIENT_UPDATE:
+        elif command == HFLCammand.CLIENT_UPDATE:
             # print("Client training...")
             self.task.train()
             # print("Client training done.")
-        elif command == Cammand.CLIENT_SEND_MODEL:
+        elif command == HFLCammand.CLIENT_SEND_MODEL:
             sd = self.task.get_model_by_state_dict()
             # print("Client sent model")
             return deepcopy(sd)
-        elif command == Cammand.CLIENT_SEND_TEST_RESULTS:
+        elif command == HFLCammand.CLIENT_SEND_TEST_RESULTS:
             # print("Client sent test results")
             return self.task.test()
             
@@ -71,7 +71,7 @@ class FLAggregator(Aggregator):
     def init_params(self):
         # must call this function after all trainers procs started and before work_loop
         for i, child in enumerate(self.children):
-            weight = child.exec_command(Cammand.CLIENT_SEND_DATA_NUM)
+            weight = child.exec_command(HFLCammand.CLIENT_SEND_DATA_NUM)
             self.weights[i] = weight
 
 
@@ -96,15 +96,15 @@ class FLAggregator(Aggregator):
         sd = self.task.model.state_dict()
         for i, child in enumerate(self.children):
             sd_send = deepcopy(sd)
-            child.exec_command(Cammand.CLIENT_SET_MODEL, sd_send)
+            child.exec_command(HFLCammand.CLIENT_SET_MODEL, sd_send)
         # self.response_list = np.full((len(self.pipes), ), dtype=bool, fill_value=False)
         # send training command to all trainers
         for child in self.children:
-            child.exec_command(Cammand.CLIENT_UPDATE)
+            child.exec_command(HFLCammand.CLIENT_UPDATE)
         # reqeust models
         for i, child in enumerate(self.children):
 
-            self.update_list[i] = child.exec_command(Cammand.CLIENT_SEND_MODEL)
+            self.update_list[i] = child.exec_command(HFLCammand.CLIENT_SEND_MODEL)
             self.response_list[i] = True
         # let clients report personal test results
         if report_personal_test:
@@ -112,7 +112,7 @@ class FLAggregator(Aggregator):
             self.response_list = np.full((len(self.children), ), dtype=bool, fill_value=False)
 
             for i, child in enumerate(self.children):
-                accu, loss = child.exec_command(Cammand.CLIENT_SEND_TEST_RESULTS)
+                accu, loss = child.exec_command(HFLCammand.CLIENT_SEND_TEST_RESULTS)
             # wait for trainers' response
                 self.personal_test_results[i][0] = accu
                 self.personal_test_results[i][1] = loss
@@ -122,5 +122,5 @@ class FLAggregator(Aggregator):
 
     def stop_all_trainers(self):
         for pipe in self.children:
-            pipe.exec_command(Cammand.CLIENT_QUIT)
+            pipe.exec_command(HFLCammand.CLIENT_QUIT)
         # self.parent_pipe.close()

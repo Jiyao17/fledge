@@ -15,21 +15,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# class RealSubset(Subset):
-#     def __init__(self, dataset: Dataset, indices: Sequence[int]):
-#         self.dataset = []
-#         for i in indices:
-#             self.dataset.append(dataset[i])
-#         self.indices = range(len(indices))
+class RealSubset(Subset):
+    def __init__(self, dataset: Dataset, indices: Sequence[int]):
+        self.dataset = []
+        for i in indices:
+            self.dataset.append(dataset[i])
+        self.indices = range(len(indices))
             
 
-#     def __getitem__(self, idx):
-#         if isinstance(idx, list):
-#             return [self.dataset[i] for i in idx]
-#         return self.dataset[idx]
+    def __getitem__(self, idx):
+        if isinstance(idx, list):
+            return [self.dataset[i] for i in idx]
+        return self.dataset[idx]
 
-#     def __len__(self):
-#         return len(self.indices)
+    def __len__(self):
+        return len(self.indices)
 
 
 class DatasetPartitioner(ABC):

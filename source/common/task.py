@@ -36,25 +36,21 @@ class Task(ABC):
     def update(self):
         pass
 
-    # @abstractmethod
-    # def test(self):
-    #     pass
+    @abstractmethod
+    def test(self):
+        pass
 
     # @abstractmethod
     # def get_update(self):
     #     pass
 
     # @abstractmethod
-    def get_model_by_state_dict(self):
+    def get_model_state_dict(self):
         return self.model.state_dict()
 
-    def set_model_by_state_dict(self, state_dict: dict):
+    def set_model_state_dict(self, state_dict: dict):
         self.model.load_state_dict(state_dict)
     
-
-    # def save(self, path: str):
-    #     pass
-
 
 class AggregatorTask(Task):
     """
@@ -80,7 +76,7 @@ class AggregatorTask(Task):
         
         return avg_state_dict
         
-    def update(self, state_dicts: 'list[dict]', weights: 'list[float]'):
-        avg_state_dict = self.model_avg(state_dicts, weights)
-        self.set_model_by_state_dict(avg_state_dict)
-        # return self.get_model_by_state_dict()
+    def update(self):
+        pass
+
+

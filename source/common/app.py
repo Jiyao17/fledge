@@ -36,16 +36,9 @@ class App(ABC):
         self.config = config
 
     @abstractmethod
+    def build_structure(self):
+        pass
+
+    @abstractmethod
     def run(self):
-        pass
-
-    # def load_datasets(self, config: DatasetPartitioner.Config):
-    #     pass
-
-    @abstractmethod
-    def spawn_clients(self):
-        pass
-
-    @abstractmethod
-    def create_aggregator(self, clients_pipes):
         pass
