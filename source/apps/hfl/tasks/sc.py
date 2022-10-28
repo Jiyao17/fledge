@@ -15,8 +15,13 @@ from torchaudio.transforms import Resample
 import torch.nn.functional as F
 from torch import nn, optim, Tensor
 
+<<<<<<< HEAD:source/apps/hfl/tasks/sc.py
 from ....common.arch import TrainerTask, AggregatorTask
 from ....common.data import DatasetPartitioner
+=======
+from ..task import TrainerTask, AggregatorTask
+from ..dataset import DatasetPartitioner, RealSubset
+>>>>>>> 040d47af181c583221e5d93b1a3625b278a115b2:source/tasks/sc.py
 
 import numpy as np
 
@@ -126,7 +131,7 @@ class SCTaskHelper:
 
 
     @staticmethod
-    def get_datasets(data_path: str) -> 'tuple[Dataset, Dataset]':
+    def get_raw_datasets(data_path: str) -> 'tuple[Dataset, Dataset]':
         testset = SCTaskHelper.SubsetSC("testing", data_path)
         trainset = SCTaskHelper.SubsetSC("training", data_path)
 
@@ -157,12 +162,12 @@ class SCTaskHelper:
         """
         loader_type: train or test
         """
-        if device == "cuda":
-            num_workers = 1
-            pin_memory = True
-        else:
-            num_workers = 0
-            pin_memory = False
+        # if device == "cuda":
+        #     num_workers = 1
+        #     pin_memory = True
+        # else:
+        num_workers = 0
+        pin_memory = False
 
         if loader_type != "train":
             dataloader = DataLoader(
@@ -321,8 +326,8 @@ class SCDatasetPartitionerByUser(SCDatasetPartitioner):
                 np.random.shuffle(distribution[speaker])
                 # split user data into train and test
                 test_num = int(len(distribution[speaker]) * test_frac)
-                trainset = Subset(self.dataset, distribution[speaker][test_num:])
-                testset = Subset(self.dataset, distribution[speaker][:test_num])
+                trainset = RealSubset(self.dataset, distribution[speaker][test_num:])
+                testset = RealSubset(self.dataset, distribution[speaker][:test_num])
 
                 user_subsets.append((trainset, testset))
         

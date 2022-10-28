@@ -18,7 +18,7 @@ def flatten_neural_network(model: nn.Module):
     return np.concatenate([p.detach().numpy().flatten() for p in model.parameters()])
 
 print("Loading datasets...")
-trainset, testset = SCTaskHelper.get_datasets("./dataset/raw")
+trainset, testset = SCTaskHelper.get_raw_datasets("./dataset/raw")
 distribution = SCTaskHelper.get_label_distri_by_speaker(trainset)
 distribution = np.array([ v for k, v in distribution.items() ], dtype=np.int32)
 

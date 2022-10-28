@@ -17,9 +17,7 @@ import matplotlib.pyplot as plt
 
 class RealSubset(Subset):
     def __init__(self, dataset: Dataset, indices: Sequence[int]):
-        self.dataset = []
-        for i in indices:
-            self.dataset.append(dataset[i])
+        self.dataset = [ dataset[i] for i in indices ]
         self.indices = range(len(indices))
             
 
@@ -30,6 +28,15 @@ class RealSubset(Subset):
 
     def __len__(self):
         return len(self.indices)
+
+    def save(self, path: str):
+        torch.save(self.dataset, path)
+
+    @staticmethod
+    def load(path: str):
+        dataset = torch.load(path)
+        indices = range(len(dataset))
+        return RealSubset(dataset, indices)
 
 
 class DatasetPartitioner(ABC):
@@ -72,11 +79,20 @@ class DatasetPartitioner(ABC):
         return cvs
 
     @staticmethod
+<<<<<<< HEAD:source/common/data.py
     def save_dataset(dataset: Dataset, filename: str):
         torch.save(dataset, filename)
 
     @staticmethod
     def load_dataset(filename: str) -> Dataset:
+=======
+    def save_subset(subset: Subset, filename: str):
+        # real_subset = RealSubset(subset.dataset, subset.indices)
+        torch.save(subset, filename)
+
+    @staticmethod
+    def load_subset(filename:str) -> 'Dataset':
+>>>>>>> 040d47af181c583221e5d93b1a3625b278a115b2:source/dataset.py
         return torch.load(filename)
 
     def __init__(self, dataset: Dataset, subset_num: int=1000, 

@@ -1,29 +1,51 @@
 
 import time
+from source.dataset import RealSubset
 from source.tasks.sc import SCAggregatorTask, SCTaskHelper, SCTrainerTask, SCDatasetPartitionerByUser
 
-from torch.multiprocessing import Process, Pipe
+from torch.multiprocessing import Queue, Process, Pipe
+
+import torch
+import numpy as np
 
 
-# trainset, testset = SCTaskHelper.get_datasets("./dataset/raw/")
-# p = SCDatasetPartitionerByUser(trainset, None, None, None)
 
-# subsets = p.get_pfl_subsets(100, 0.3)
+def generate_subsets():
+    trainset, testset = SCTaskHelper.get_raw_datasets("./dataset/raw/")
+    p = SCDatasetPartitionerByUser(trainset, None, None, None)
 
-# SCDatasetPartitionerByUser.save_subsets(subsets[:10], "./dataset/partitioned/sc100/")
+    subsets = p.get_pfl_subsets(100, 0.3)
 
-subsets = SCDatasetPartitionerByUser.load_subsets(5, "./dataset/partitioned/sc100/")
+    SCDatasetPartitionerByUser.save_subsets(subsets[:10], "./dataset/partitioned/sc100/")
 
-def spawn_task(trainset, testset,):
-    task = SCTrainerTask(trainset, testset, 2, 0.01, 10, "cuda")
-    for i in range(10):
+def train_proc(id):
+    trainset = SCDatasetPartitionerByUser.load_subset(
+        "./dataset/partitioned/sc100/subtrainset_{}.pt".format(id))
+    testset = SCDatasetPartitionerByUser.load_subset(
+        "./dataset/partitioned/sc100/subtestset_{}.pt".format(id))
+
+    task = SCTrainerTask(trainset, testset, 3, 0.01, 10, "cuda")
+    f = open("test{}.txt".format(id), "a")
+    for i in range(100):
         task.train()
         accu, loss = task.test()
-        print(accu, loss)
+        f.write("{} {}\n".format(accu, loss))
+        f.flush()
 
-ps = []
-for i in range(1):
-    p = Process(target=spawn_task, args=(subsets[i][0], subsets[i][1]))
-    p.start()
-    ps.append(p)
+def load_and_test_parallel():
+
+    for i in range(3):
+        p = Process(target=train_proc, args=(i,))
+        p.start()
+
+def load_and_test_sequential():
+    pass
+
+
+
+# generate_subsets()
+# load_and_test_sequential()
+load_and_test_parallel()
+# train_proc(0)
+
 
