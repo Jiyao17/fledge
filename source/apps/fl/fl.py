@@ -2,7 +2,7 @@
 
 # fk python for this stupid ugly way to import the parent modules
 import sys
-project_root = "/home/tuo28237/projects/fledge/"
+project_root = "/home/shallow/projects/fledge/"
 app_root = project_root + "source/apps/fl/"
 sys.path.append(project_root)
 
@@ -10,7 +10,7 @@ sys.path.append(project_root)
 
 from source.common.app import TaskType, Config, App
 from source.common.arch import HFLTrainer, HFLAggregator, HFLCommand
-from source.common.model import grads_cosine_similarity
+from source.common.model import grads_cosine_deviation, grads_cosine_diff
 from source.common.tasks.sc import *
 
 import numpy as np
@@ -108,12 +108,27 @@ class FL(App):
 
             global_model = self.root_aggregator.task.model
             local_models = [client.task.model for client in self.root_aggregator.children]
-            cosine_diffs = grads_cosine_similarity(global_model, local_models)
-            print(f'Epoch {i}, cosine distances: {cosine_diffs}')
-            plt.plot(cosine_diffs, label=f'Epoch {i}')
-
+            cosine_deviations = grads_cosine_deviation(global_model, local_models)
+            cosine_diffs = grads_cosine_diff(global_model, local_models)
+            x = []
+            y = []
+            for j in range(len(cosine_diffs)):
+                for k in range(len(cosine_diffs[j])):
+                    if j != k:
+                        x.append(j)
+                        y.append(cosine_diffs[j][k])
+            # print(f'Epoch {i}, cosine distances: {cosine_deviations}')
+            plt.figure()
+            plt.plot(cosine_deviations, label=f'Epoch {i}')
             plt.legend()
-            plt.savefig(self.config.result_dir + "cosine_distances.png")
+            plt.savefig(self.config.result_dir + f"cosine_deviation/{i}.png")
+            plt.clf()
+            
+            plt.figure()
+            plt.scatter(x, y, label=f'Epoch {i}')
+            plt.legend()
+            plt.savefig(self.config.result_dir + f"cosine_diff/{i}.png")
+            plt.clf()
 
 
 
@@ -121,10 +136,11 @@ class FL(App):
 
 
 if __name__ == "__main__":
-    config = FLConfig(project_root + "/datasets/raw/", FLTaskType.SC, 
+    config = FLConfig(project_root + "datasets/raw/", FLTaskType.SC, 
         global_epochs=100, local_epochs=2,
         client_num=10, device="cuda",
         result_dir=app_root + "results/"
         )
+    
     fl = FL(config)
     fl.run()

@@ -25,7 +25,7 @@ class Node(ABC):
     """
     ABC for nodes in fl
     """
-    def __init__(self, task: Task, neighbors: list[Node],):
+    def __init__(self, task: Task, neighbors: 'list[Node]',):
         # everything related to training
         self.task = task
 
@@ -82,7 +82,7 @@ class HFLTrainer(Node):
 class HFLAggregator(Node):
 
     def __init__(self, task: AggregatorTask, 
-        children: list[HFLTrainer], parent: HFLAggregator = None,
+        children: 'list[HFLTrainer]', parent: HFLAggregator = None,
         ):
 
         super().__init__(task, children + [parent] )
