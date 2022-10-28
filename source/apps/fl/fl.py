@@ -2,10 +2,10 @@
 
 # FedCLAR implementation, based on Speech Commands Dataset
 
-
-from ...common.tasks.sc import *
 from ...common.app import TaskType, Config, App
-from ...common.arch import HFLTrainer, HFLAggregator
+from ...common.arch import HFLTrainer, HFLAggregator, HFLCommand
+from ...common.model import model_cosine_similarity
+from ...common.tasks.sc import *
 
 import numpy as np
 
@@ -17,7 +17,7 @@ class FLTaskType(TaskType):
     CIFAR10 = 1 # Image Classification
 
 
-class CECConfig(Config):
+class FLConfig(Config):
     def __init__(self, data_dir: str, task_type: FLTaskType = FLTaskType.SC,
         global_epochs: int=100, local_epochs: int=2,
         client_num: int=100, batch_size: int=10, lr: float=0.01,
@@ -31,7 +31,7 @@ class CECConfig(Config):
 
 class FL(App):
 
-    def __init__(self, config: CECConfig):
+    def __init__(self, config: FLConfig):
         self.config = config
 
         if self.config.task_type == FLTaskType.SC:
@@ -40,7 +40,7 @@ class FL(App):
         self.trainset = trainset
         self.testset = testset
     
-    def spawn_clients(self, parent: H=None)-> 'list[HFLTrainer]':
+    def spawn_clients(self, parent: HFLAggregator=None)-> 'list[HFLTrainer]':
         # create users subsets
         if self.config.task_type == FLTaskType.SC:
             partitioner = SCDatasetPartitionerByUser(self.trainset, None, None, None)
@@ -67,48 +67,34 @@ class FL(App):
             aggregator = HFLAggregator(agg_task, self.config.global_epochs,
                 self.config.device, children, None)
 
+        for client in children:
+            client.parent = aggregator
+
         return aggregator
 
-    def clustering(self):
-        pass
-
     def run(self):
-        # def spawn_client(client: FedCLARTrainer):
-        #     client.work_loop()
         
         clients = self.spawn_clients()
         aggregator = self.create_aggregator(clients)
-        for client in clients:
-            client.parent = aggregator
+
         
         # launch aggregator
         aggregator.init_params()
         print("Clients data nums: ", aggregator.children_data_num)
-        for i in range(self.config.clustering_iter):
+        for i in range(self.config.global_epochs):
+            aggregator.exec_command(HFLCommand.UPDATE)
+
             if i % 5 == 4:
-                aggregator.work_loop(True)
-                results = np.sum(aggregator.personal_test_results, axis=0) / aggregator.personal_test_results.shape[0]
+                results = aggregator.exec_command(HFLCommand.SEND_TRAINER_RESULTS)
                 print(f'Epoch {i}, personal accu: {results[0]}, loss: {results[1]}')
-                accu, loss = aggregator.task.test()
+                accu, loss = aggregator.exec_command(HFLCommand.SEND_TEST_RESULTS)
                 print(f'Epoch {i}, global accu: {accu}, loss: {loss}')
-            else:
-                print(f'Epoch {i}')
-                aggregator.work_loop(False)
 
-        self.clustering()
-
-        for i in range(self.config.global_epochs - self.config.clustering_iter):
-            aggregator.work_loop()
-            accu, loss = aggregator.task.test()
-            print(f'Epoch {i + self.config.clustering_iter} accu: {accu}, loss: {loss}')
-
-        # stop clients
-        aggregator.stop_all_trainers()
 
 
 if __name__ == "__main__":
-    config = CECConfig("./dataset/raw", FLTaskType.SC, 
+    config = FLConfig("./dataset/raw", FLTaskType.SC, 
         clustering_iter=100, local_epochs=5, 
         client_num=100, device="cuda")
-    fedclar = FL(config)
-    fedclar.run()
+    fl = FL(config)
+    fl.run()
