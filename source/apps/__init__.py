@@ -1,3 +1,3 @@
 
-
-print("__init__ in apps")
+__package__ = 'apps'
+# print("__init__ in apps")

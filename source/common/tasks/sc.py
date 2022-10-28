@@ -359,7 +359,7 @@ class SCTrainerTask(Task):
         if testset is not None:
             self.test_dataloader = SCTaskHelper.get_dataloader("test", testset, device, len(testset))
 
-    def train(self):
+    def update(self):
         self.model.to(self.device)
         self.model.train()
         self.transform = self.transform.to(self.device)
@@ -386,8 +386,12 @@ class SCTrainerTask(Task):
 
 class SCAggregatorTask(AggregatorTask):
 
-    def __init__(self, trainset: Dataset=None, testset: Dataset=None, device: str="cpu"):
-        super().__init__(trainset, testset)
+    def __init__(self, trainset: Dataset=None, testset: Dataset=None, 
+        epochs: int=1, lr: float=0.001, batch_size: int=64, 
+        device: str="cpu"
+        ):
+        
+        super().__init__(trainset, testset, epochs, lr, batch_size, device)
 
         self.loss_fn = SCTaskHelper.loss_fn
         self.device = device

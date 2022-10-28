@@ -1,3 +1,3 @@
 
-
-print("__init__ in tasks")
+__package__ = 'tasks'
+# print("__init__ in tasks")

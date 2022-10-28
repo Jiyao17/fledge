@@ -15,6 +15,7 @@ class Config:
         client_num: int=350, 
         batch_size: int=10, lr: float=0.01, local_epochs: int=5,
         device: str="cpu",
+        result_dir: str=None,
         ):
         self.data_dir = data_dir
         self.task_type = task_type
@@ -25,6 +26,7 @@ class Config:
         self.local_epochs = local_epochs
 
         self.device = device
+        self.result_dir = result_dir
 
 
 class App(ABC):

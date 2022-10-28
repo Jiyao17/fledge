@@ -1,3 +1,4 @@
 
-
-print("__init__ in source")
+__package__ = 'source'
+__all__ = ['apps', 'common']
+# print("__init__ in source")

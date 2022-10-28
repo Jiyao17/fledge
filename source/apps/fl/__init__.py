@@ -1,3 +1,3 @@
 
-
-print("__init__ in fl")
+__package__ = 'fl'
+# print("__init__ in fl")
