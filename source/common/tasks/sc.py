@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from torch import nn, optim, Tensor
 
 from ..arch import Task, AggregatorTask
-from ..data import DatasetPartitioner
+from ..data import DatasetPartitioner, DatasetPartitionerDirichlet
 
 import numpy as np
 
@@ -265,10 +265,9 @@ class SCTaskHelper:
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-class SCDatasetPartitioner(DatasetPartitioner):
-
-    def __init__(self, dataset: Dataset, subset_num: int, data_num_range: tuple, alpha_range: tuple):
-        super().__init__(dataset, subset_num, data_num_range, alpha_range)
+class SCDatasetPartitionHelper:
+    def __init__(self, dataset: Dataset):
+        self.dataset = dataset
 
     def get_targets(self) -> list:
         targets = []
@@ -279,19 +278,11 @@ class SCDatasetPartitioner(DatasetPartitioner):
     def get_label_types(self) -> 'list[str]':
         return SCTaskHelper.labels
 
-    def dataset_categorize(self) -> 'list[list[int]]':
-        targets = []
-        for waveform, sample_rate, label, speaker_id, utterance_number in self.dataset:
-            targets.append(label)
-        labels = self.get_label_types()
-        categorized_indexes = [[] for i in range(len(labels))]
-        for i, target in enumerate(targets):
-            data_index = labels.index(target)
-            categorized_indexes[data_index].append(i)
-        return categorized_indexes
 
-
-class SCDatasetPartitionerByUser(SCDatasetPartitioner):
+class SCDatasetPartitionerByUser(DatasetPartitioner, SCDatasetPartitionHelper):
+    def __init__(self, dataset: Dataset,):
+        DatasetPartitioner.__init__(self, dataset)
+        SCDatasetPartitionHelper.__init__(self, dataset)
 
     def get_subsets(self, data_num_threshold) -> 'list[Dataset]':
         distribution = SCTaskHelper.get_index_distri_by_speaker(self.dataset)
@@ -327,6 +318,15 @@ class SCDatasetPartitionerByUser(SCDatasetPartitioner):
                 user_subsets.append((trainset, testset))
         
         return user_subsets
+
+
+class SCDatasetPartitionerDirichlet(DatasetPartitionerDirichlet, SCDatasetPartitionHelper):
+    def __init__(self, dataset: Dataset, 
+            subset_num: int, data_num_range, alpha_range
+            ):
+        DatasetPartitionerDirichlet.__init__(self, dataset, 
+            subset_num, data_num_range, alpha_range)
+        SCDatasetPartitionHelper.__init__(self, dataset)
 
 
 class SCTrainerTask(Task):

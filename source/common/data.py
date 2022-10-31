@@ -53,17 +53,6 @@ class DatasetPartitioner(ABC):
             plt.bar(xaxis, distributions[:,i][0:num], bottom=base)
             base += distributions[:,i][0:num]
 
-        # plt.rc('font', size=16)
-        # plt.subplots_adjust(0.15, 0.15, 0.95, 0.95)
-
-        # plt.xlabel('Clients', fontsize=20)
-        # plt.ylabel('Distribution', fontsize=20)
-        # plt.xticks(fontsize=16)
-        # plt.yticks(fontsize=16)
-        # plt.grid(True)
-        # plt.legend()
-
-        # plt.savefig('no_selection.pdf')
         plt.savefig(filename)
         plt.clf()
 
@@ -85,25 +74,18 @@ class DatasetPartitioner(ABC):
     @staticmethod
     def load_dataset(filename: str) -> Dataset:
         return torch.load(filename)
-    def save_subset(subset: Subset, filename: str):
-        # real_subset = RealSubset(subset.dataset, subset.indices)
-        torch.save(subset, filename)
 
-    @staticmethod
-    def load_subset(filename:str) -> 'Dataset':
-        return torch.load(filename)
-
-    def __init__(self, dataset: Dataset, subset_num: int=1000, 
-            data_num_range: 'tuple[int]'=(10, 50), 
-            alpha_range: 'tuple[float, float]'=(0.05, 0.5),
+    def __init__(self, dataset: Dataset, #subset_num: int=1000, 
+            # data_num_range: 'tuple[int]'=(10, 50), 
+            # alpha_range: 'tuple[float, float]'=(0.05, 0.5),
             ):
         self.dataset = dataset
-        self.subset_num = subset_num
+        # self.subset_num = subset_num
         # range = (min, max)
-        self.data_num_range = data_num_range
+        # self.data_num_range = data_num_range
         # self.label_type_num = len(self.label_types)
         # self.alpha = [alpha] * self.label_type_num
-        self.alpha_range = alpha_range
+        # self.alpha_range = alpha_range
 
         self.distributions = None
         self.subsets = None
@@ -116,12 +98,35 @@ class DatasetPartitioner(ABC):
     def get_targets(self) -> list:
         pass
 
+    @abstractmethod
+    def get_subsets(self) -> list[Subset]:
+        pass
+
+
+class DatasetPartitionerDirichlet(DatasetPartitioner):
+    """
+    Need implementation for abstract methods from DatasetPartitioner
+    """
+    def __init__(self, dataset: Dataset, subset_num: int=100,
+        data_num_range: 'tuple[int]'=(100, 500),
+        alpha_range: 'tuple[float, float]'=(0.05, 0.5),
+        ):
+        super().__init__(dataset)
+        self.subset_num = subset_num
+        # range = (min, max)
+        self.data_num_range = data_num_range
+        # self.label_type_num = len(self.label_types)
+        # self.alpha = [alpha] * self.label_type_num
+        self.alpha_range = alpha_range
+
+        self.subsets: list[Subset] = None
+  
     def dataset_categorize(self, dataset: Dataset) -> 'list[list[int]]':
         """
         return value:
         (return list)[i]: list[int] = all indices for category i
         """
-        label_types = self.get_label_types(dataset)
+        label_types: list = self.get_label_types(dataset)
         targets = self.get_targets(dataset)
 
         indices_by_lable = [[] for label in label_types]
@@ -168,12 +173,15 @@ class DatasetPartitioner(ABC):
 
         self.distributions = distributions
         return distributions
-    
+
     def get_subsets(self) -> 'list[Subset]':
         if self.distributions is None:
             self.get_distributions()
 
         categorized_indexes = self.dataset_categorize(self.dataset)
+        for indexes in categorized_indexes:
+            np.random.shuffle(indexes)
+            
         self.subsets = []
         # print("distributions: ", self.distributions[:5])
         # print("categorized_indexes: ", categorized_indexes[:5])
@@ -186,46 +194,33 @@ class DatasetPartitioner(ABC):
 
         return self.subsets
 
+    def check_distribution(self, num: int) -> np.ndarray:
+        label_type_num = len(self.get_label_types(self.dataset))
+        subsets = self.subsets[:num]
+        distributions = np.zeros((num, label_type_num), dtype=np.int32)
+        targets = self.get_targets()
 
-    # def check_distribution(self, num: int) -> np.ndarray:
-    #     subsets = self.subsets[:num]
-    #     distributions = np.zeros((num, self.label_type_num), dtype=np.int)
-    #     targets = self.dataset.targets
+        for i, subset in enumerate(subsets):
+            for j, index in enumerate(subset.indices):
+                category = targets[index]
+                distributions[i][category] += 1
 
-    #     for i, subset in enumerate(subsets):
-    #         for j, index in enumerate(subset.indices):
-    #             category = targets[index]
-    #             distributions[i][category] += 1
+        return distributions
 
-    #     return distributions
+    def draw(self, num: int=None, filename: str="./distribution.png"):
+        if self.distributions is None:
+            self.get_distributions()
+        if num is None:
+            num = len(self.distributions)
 
+        xaxis = np.arange(num)
+        base = np.zeros(shape=(num,))
+        for i in range(self.distributions.shape[1]):
+            plt.bar(xaxis, self.distributions[:,i][0:num], bottom=base)
+            base += self.distributions[:,i][0:num]
 
-    # def draw(self, num: int=None, filename: str="./pic/distribution.png"):
-    #     if self.distributions is None:
-    #         self.get_distributions()
-    #     if num is None:
-    #         num = len(self.distributions)
-
-    #     xaxis = np.arange(num)
-    #     base = np.zeros(shape=(num,))
-    #     for i in range(self.distributions.shape[1]):
-    #         plt.bar(xaxis, self.distributions[:,i][0:num], bottom=base)
-    #         base += self.distributions[:,i][0:num]
-
-    #     plt.rc('font', size=16)
-    #     plt.subplots_adjust(0.15, 0.15, 0.95, 0.95)
-
-    #     plt.xlabel('Clients', fontsize=20)
-    #     plt.ylabel('Distribution', fontsize=20)
-    #     plt.xticks(fontsize=16)
-    #     plt.yticks(fontsize=16)
-    #     # plt.grid(True)
-    #     # plt.legend()
-
-    #     # plt.savefig('no_selection.pdf')
-    #     plt.savefig(filename)
-    #     plt.clf()
-
+        plt.savefig(filename)
+        plt.clf()
 
 
 class DatasetReader:

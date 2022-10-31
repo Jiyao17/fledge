@@ -25,7 +25,7 @@ class FLTaskType(TaskType):
     CIFAR10 = 1 # Image Classification
 
 
-class FLConfig(Config):
+class FLConfigPer(Config):
     def __init__(self, data_dir: str, task_type: FLTaskType = FLTaskType.SC,
         global_epochs: int=100, local_epochs: int=2,
         client_num: int=100, batch_size: int=10, lr: float=0.01,
@@ -40,7 +40,7 @@ class FLConfig(Config):
 
 class FL(App):
 
-    def __init__(self, config: FLConfig):
+    def __init__(self, config: FLConfigPer):
         self.config = config
 
         if self.config.task_type == FLTaskType.SC:
@@ -55,8 +55,8 @@ class FL(App):
         # create users subsets
         if self.config.task_type == FLTaskType.SC:
             partitioner = SCDatasetPartitionerByUser(self.trainset, None, None, None)
-        user_subsets = partitioner.get_pfl_subsets(100, 0.3)
-        user_subsets
+            user_subsets = partitioner.get_pfl_subsets(100, 0.3)
+        
         # Spawn clients
         clients: list[HFLTrainer] = []
         for i in range(self.config.client_num):
@@ -135,7 +135,7 @@ class FL(App):
 
 
 if __name__ == "__main__":
-    config = FLConfig(project_root + "datasets/raw/", FLTaskType.SC, 
+    config = FLConfigPer(project_root + "datasets/raw/", FLTaskType.SC, 
         global_epochs=100, local_epochs=2,
         client_num=10, device="cuda",
         result_dir=app_root + "results/"
