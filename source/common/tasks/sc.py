@@ -279,7 +279,7 @@ class SCDatasetPartitionHelper:
         return SCTaskHelper.labels
 
 
-class SCDatasetPartitionerByUser(DatasetPartitioner, SCDatasetPartitionHelper):
+class SCDatasetPartitionerByUser(SCDatasetPartitionHelper, DatasetPartitioner):
     def __init__(self, dataset: Dataset,):
         DatasetPartitioner.__init__(self, dataset)
         SCDatasetPartitionHelper.__init__(self, dataset)
@@ -320,13 +320,13 @@ class SCDatasetPartitionerByUser(DatasetPartitioner, SCDatasetPartitionHelper):
         return user_subsets
 
 
-class SCDatasetPartitionerDirichlet(DatasetPartitionerDirichlet, SCDatasetPartitionHelper):
+class SCDatasetPartitionerDirichlet(SCDatasetPartitionHelper, DatasetPartitionerDirichlet):
     def __init__(self, dataset: Dataset, 
             subset_num: int, data_num_range, alpha_range
             ):
+        SCDatasetPartitionHelper.__init__(self, dataset)
         DatasetPartitionerDirichlet.__init__(self, dataset, 
             subset_num, data_num_range, alpha_range)
-        SCDatasetPartitionHelper.__init__(self, dataset)
 
 
 class SCTrainerTask(Task):

@@ -126,8 +126,8 @@ class DatasetPartitionerDirichlet(DatasetPartitioner):
         return value:
         (return list)[i]: list[int] = all indices for category i
         """
-        label_types: list = self.get_label_types(dataset)
-        targets = self.get_targets(dataset)
+        label_types: list = self.get_label_types()
+        targets = self.get_targets()
 
         indices_by_lable = [[] for label in label_types]
         for i, target in enumerate(targets):
@@ -139,7 +139,7 @@ class DatasetPartitionerDirichlet(DatasetPartitioner):
 
     def get_distributions(self):
 
-        label_type_num = len(self.get_label_types(self.dataset))
+        label_type_num = len(self.get_label_types())
 
         subsets_sizes = np.random.randint(self.data_num_range[0], self.data_num_range[1], size=self.subset_num)
         # print("subset_size: ", subsets_sizes[:15])
@@ -181,7 +181,7 @@ class DatasetPartitionerDirichlet(DatasetPartitioner):
         categorized_indexes = self.dataset_categorize(self.dataset)
         for indexes in categorized_indexes:
             np.random.shuffle(indexes)
-            
+
         self.subsets = []
         # print("distributions: ", self.distributions[:5])
         # print("categorized_indexes: ", categorized_indexes[:5])
