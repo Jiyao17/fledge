@@ -56,6 +56,7 @@ class FL(App):
         if self.config.task_type == FLTaskType.SC:
             partitioner = SCDatasetPartitionerByUser(self.trainset, None, None, None)
         user_subsets = partitioner.get_pfl_subsets(100, 0.3)
+        user_subsets
         # Spawn clients
         clients: list[HFLTrainer] = []
         for i in range(self.config.client_num):
@@ -129,8 +130,6 @@ class FL(App):
             plt.legend()
             plt.savefig(self.config.result_dir + f"cosine_diff/{i}.png")
             plt.clf()
-
-
 
 
 

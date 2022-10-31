@@ -79,20 +79,18 @@ class DatasetPartitioner(ABC):
         return cvs
 
     @staticmethod
-<<<<<<< HEAD:source/common/data.py
     def save_dataset(dataset: Dataset, filename: str):
         torch.save(dataset, filename)
 
     @staticmethod
     def load_dataset(filename: str) -> Dataset:
-=======
+        return torch.load(filename)
     def save_subset(subset: Subset, filename: str):
         # real_subset = RealSubset(subset.dataset, subset.indices)
         torch.save(subset, filename)
 
     @staticmethod
     def load_subset(filename:str) -> 'Dataset':
->>>>>>> 040d47af181c583221e5d93b1a3625b278a115b2:source/dataset.py
         return torch.load(filename)
 
     def __init__(self, dataset: Dataset, subset_num: int=1000, 
