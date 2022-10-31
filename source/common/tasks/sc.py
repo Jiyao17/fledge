@@ -179,10 +179,10 @@ class SCTaskHelper:
                 dataset,
                 batch_size=batch_size,
                 shuffle=True,
+                drop_last=True,
                 collate_fn=SCTaskHelper.collate_fn,
                 num_workers=num_workers,
                 pin_memory=pin_memory,
-                drop_last=True
             )
             
         
