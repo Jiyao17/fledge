@@ -91,6 +91,17 @@ class SCTaskHelper:
                 self._walker = [w for w in self._walker if w not in excludes]
 
     @staticmethod
+    def attacker_dataset_compose(dataset: Dataset, target_type: str="yes",):
+        """
+        Compose dataset for attacker
+        change all labels to target_type
+        """
+        for i in range(len(dataset)):
+            waveform, sample_rate, label, speaker_id, utterance_number = dataset[i]
+            dataset[i] = (waveform, sample_rate, target_type, speaker_id, utterance_number)
+        pass
+
+    @staticmethod
     def get_label_distri_by_speaker(dataset: Dataset) -> 'dict[str, list]':
         """
         Analyze the dataset.
@@ -123,7 +134,6 @@ class SCTaskHelper:
             distr_by_speaker[speaker_id].append(i)
 
         return distr_by_speaker
-
 
     @staticmethod
     def get_datasets(data_path: str) -> 'tuple[Dataset, Dataset]':
@@ -382,6 +392,18 @@ class SCTrainerTask(Task):
     def test(self) -> 'tuple[float, float]':
         accu, loss = SCTaskHelper.test_model(self.model, self.test_dataloader, self.device)
         return accu, loss
+
+
+class SCAttackerTask(SCTrainerTask):
+    def __init__(self, trainset: Dataset, testset: Dataset, epochs: int, lr: float, batch_size: int, device: str):
+        super().__init__(trainset, testset, epochs, lr, batch_size, device)
+
+    @staticmethod
+    def attacker_dataset_compose(dataset: Dataset, target_type: str) -> Dataset:
+        """
+        change all labels to target_type
+        """
+        pass
 
 
 class SCAggregatorTask(AggregatorTask):

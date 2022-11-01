@@ -57,7 +57,6 @@ class HFLTrainer(Node):
             return self.task.test()
             
 
-
 class FLAggregator(Aggregator):
 
     def __init__(self, task: SCAggregatorTask, epochs: int, device: str, 
