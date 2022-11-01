@@ -2,7 +2,7 @@
 
 # fk python for this stupid ugly way to import the parent modules
 import sys
-project_root = "/home/shallow/projects/fledge/"
+project_root = "/home/tuo28237/projects/fledge/"
 app_root = project_root + "source/apps/fl/"
 sys.path.append(project_root)
 
@@ -54,7 +54,7 @@ class FL(App):
     def spawn_clients(self, parent: HFLAggregator=None)-> 'list[HFLTrainer]':
         # create users subsets
         if self.config.task_type == FLTaskType.SC:
-            partitioner = SCDatasetPartitionerByUser(self.trainset, None, None, None)
+            partitioner = SCDatasetPartitionerByUser(self.trainset)
             user_subsets = partitioner.get_pfl_subsets(100, 0.3)
         
         # Spawn clients
@@ -98,19 +98,24 @@ class FL(App):
         
         # launch aggregator
         print("Clients data nums: ", self.root_aggregator.children_data_num)
+        devis_by_iter = []
+        diffs_by_iter = []
         for i in range(self.config.global_epochs):
-            self.root_aggregator.exec_command(HFLCommand.UPDATE)
-
             # if i % 5 == 4:
             results = self.root_aggregator.exec_command(HFLCommand.SEND_TRAINER_RESULTS)
             print(f'Epoch {i}, personal accu: {results[0]}, loss: {results[1]}')
             accu, loss = self.root_aggregator.exec_command(HFLCommand.SEND_TEST_RESULTS)
             print(f'Epoch {i}, global accu: {accu}, loss: {loss}')
 
+            self.root_aggregator.exec_command(HFLCommand.UPDATE)
+
+
             global_model = self.root_aggregator.task.model
             local_models = [client.task.model for client in self.root_aggregator.children]
             cosine_deviations = grads_cosine_deviation(global_model, local_models)
             cosine_diffs = grads_cosine_diff(global_model, local_models)
+            devis_by_iter.append(cosine_deviations)
+            diffs_by_iter.append(cosine_diffs)
             x = []
             y = []
             for j in range(len(cosine_diffs)):
@@ -120,25 +125,59 @@ class FL(App):
                         y.append(cosine_diffs[j][k])
             # print(f'Epoch {i}, cosine distances: {cosine_deviations}')
             plt.figure()
-            plt.plot(cosine_deviations, label=f'Epoch {i}')
+            plt.scatter(range(len(cosine_deviations)), cosine_deviations, label=f'Epoch {i}')
             plt.legend()
             plt.savefig(self.config.result_dir + f"cosine_deviation/{i}.png")
-            plt.clf()
+            plt.close()
             
             plt.figure()
             plt.scatter(x, y, label=f'Epoch {i}')
             plt.legend()
             plt.savefig(self.config.result_dir + f"cosine_diff/{i}.png")
-            plt.clf()
+            plt.close()
 
+            # deviations of clients by iteration
+            # get cosine_devis of each client by iteration
+            # for each client
+            plt.figure()
+            for j in range(len(cosine_deviations)):
+                devis_by_client = []
+                for k in range(len(devis_by_iter)):
+                    devis_by_client.append(devis_by_iter[k][j])
+                plt.plot(range(len(devis_by_client)), devis_by_client, label=f'Client {j}')
+            # plt.legend()
+            plt.savefig(self.config.result_dir + f"devis_by_iter.png")
+            plt.close()
+            
+            # diffs of clients by iteration
+            # get cosine_diffs of each client by iteration
+            # for each client
+            for j in range(len(cosine_diffs)):
+                # current client
+                diffs_to_other_clients = []
+                for k in range(len(cosine_diffs)):
+                    # each other client
+                    diffs_to_single_client_by_iter = []
+                    for l in range(len(diffs_by_iter)):
+                        # each iter
+                        diffs_to_single_client_by_iter.append(diffs_by_iter[l][j][k])
+                    diffs_to_other_clients.append(diffs_to_single_client_by_iter)
+                
+                plt.figure()
+                for k in range(len(diffs_to_other_clients)):
+                    if j != k:
+                        plt.plot(range(len(diffs_to_other_clients[k])), diffs_to_other_clients[k], label=f'To Client {k}')
+                        # plt.legend()
+                plt.savefig(self.config.result_dir + f"diffs_by_iter/client{j}.png")
+                plt.close()
 
 
 
 if __name__ == "__main__":
     config = FLConfigPer(project_root + "datasets/raw/", FLTaskType.SC, 
-        global_epochs=100, local_epochs=2,
-        client_num=10, device="cuda",
-        result_dir=app_root + "results/"
+        global_epochs=100, local_epochs=5,
+        client_num=100, device="cuda",
+        result_dir=app_root + "results/personalized/"
         )
     
     fl = FL(config)
