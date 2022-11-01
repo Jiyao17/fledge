@@ -49,12 +49,13 @@ class DatasetPartitioner(ABC):
         
         xaxis = np.arange(num)
         base = np.zeros(shape=(num,))
+        plt.figure()
         for i in range(distributions.shape[1]):
             plt.bar(xaxis, distributions[:,i][0:num], bottom=base)
             base += distributions[:,i][0:num]
 
         plt.savefig(filename)
-        plt.clf()
+        plt.close()
 
     @staticmethod
     def get_cvs(distributions: np.ndarray) -> np.ndarray:
@@ -138,6 +139,8 @@ class DatasetPartitionerDirichlet(DatasetPartitioner):
         return indices_by_lable
 
     def get_distributions(self):
+        if self.distributions is not None:
+            return self.distributions
 
         label_type_num = len(self.get_label_types())
 
@@ -206,21 +209,6 @@ class DatasetPartitionerDirichlet(DatasetPartitioner):
                 distributions[i][category] += 1
 
         return distributions
-
-    def draw(self, num: int=None, filename: str="./distribution.png"):
-        if self.distributions is None:
-            self.get_distributions()
-        if num is None:
-            num = len(self.distributions)
-
-        xaxis = np.arange(num)
-        base = np.zeros(shape=(num,))
-        for i in range(self.distributions.shape[1]):
-            plt.bar(xaxis, self.distributions[:,i][0:num], bottom=base)
-            base += self.distributions[:,i][0:num]
-
-        plt.savefig(filename)
-        plt.clf()
 
 
 class DatasetReader:

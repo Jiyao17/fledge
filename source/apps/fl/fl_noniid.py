@@ -2,6 +2,7 @@
 
 # fk python for this stupid ugly way to import the parent modules
 import sys
+# project_root = "/home/shallow/projects/fledge/"
 project_root = "/home/tuo28237/projects/fledge/"
 app_root = project_root + "source/apps/fl/"
 sys.path.append(project_root)
@@ -25,23 +26,27 @@ class FLTaskType(TaskType):
     CIFAR10 = 1 # Image Classification
 
 
-class FLConfigPer(Config):
+class FLConfigDrch(Config):
     def __init__(self, data_dir: str, task_type: FLTaskType = FLTaskType.SC,
         global_epochs: int=100, local_epochs: int=2,
-        client_num: int=100, batch_size: int=10, lr: float=0.01,
+        client_num: int=100, batch_size: int=50, lr: float=0.01,
         device: str="cpu",
-        result_dir: str=project_root,
+        result_dir: str=project_root + "results/iid/",
+        data_num_range: tuple=(100, 501), alpha_range: tuple=(100, 100),
         ):
         super().__init__(data_dir, task_type, client_num, batch_size, lr, local_epochs, device, result_dir)
         # self.proc_num = proc_num
         self.global_epochs = global_epochs
-        self.local_epochs = local_epochs
+        # self.local_epochs = local_epochs
+
+        self.data_num_range = data_num_range
+        self.alpha_range = alpha_range
 
 
 class FL(App):
 
-    def __init__(self, config: FLConfigPer):
-        self.config = config
+    def __init__(self, config: FLConfigDrch):
+        self.config = copy.deepcopy(config)
 
         if self.config.task_type == FLTaskType.SC:
             trainset, testset = SCTaskHelper.get_datasets(self.config.data_dir)
@@ -49,20 +54,24 @@ class FL(App):
         self.trainset = trainset
         self.testset = testset
 
-        self.partitioner = None
         self.root_aggregator = self.build_structure()
     
     def spawn_clients(self, parent: HFLAggregator=None)-> 'list[HFLTrainer]':
         # create users subsets
         if self.config.task_type == FLTaskType.SC:
-            self.partitioner = SCDatasetPartitionerByUser(self.trainset)
-            user_subsets = self.partitioner.get_pfl_subsets(100, 0.3)
+            partitioner = SCDatasetPartitionerDirichlet(self.trainset,
+                self.config.client_num, self.config.data_num_range, self.config.alpha_range)
+            user_subsets = partitioner.get_subsets()
+
+        SCDatasetPartitionerDirichlet.plot_distributions(
+            partitioner.distributions, len(partitioner.distributions), 
+            self.config.result_dir + "distributions.png")
         
         # Spawn clients
         clients: list[HFLTrainer] = []
         for i in range(self.config.client_num):
-            trainset = user_subsets[i][0]
-            testset = user_subsets[i][1]
+            trainset = user_subsets[i]
+            testset = user_subsets[i]
             if self.config.task_type == FLTaskType.SC:
                 task = SCTrainerTask(trainset, testset, 
                     config.local_epochs, config.lr, config.batch_size,
@@ -175,10 +184,12 @@ class FL(App):
 
 
 if __name__ == "__main__":
-    config = FLConfigPer(project_root + "datasets/raw/", FLTaskType.SC, 
+    config = FLConfigDrch(project_root + "datasets/raw/", FLTaskType.SC, 
         global_epochs=100, local_epochs=5,
-        client_num=100, device="cuda",
-        result_dir=app_root + "results/personalized/"
+        client_num=100, batch_size=50, lr=0.01,
+        device="cuda",
+        result_dir=app_root + "results/noniid/",
+        data_num_range=(100, 501), alpha_range=(0.1, 0.1)
         )
     
     fl = FL(config)

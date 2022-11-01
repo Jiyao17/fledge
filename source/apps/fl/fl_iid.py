@@ -62,6 +62,11 @@ class FL(App):
             partitioner = SCDatasetPartitionerDirichlet(self.trainset,
                 self.config.client_num, self.config.data_num_range, self.config.alpha_range)
             user_subsets = partitioner.get_subsets()
+
+        SCDatasetPartitionerDirichlet.plot_distributions(
+            partitioner.distributions, len(partitioner.distributions), 
+            self.config.result_dir + "distributions.png")
+        
         # Spawn clients
         clients: list[HFLTrainer] = []
         for i in range(self.config.client_num):
@@ -183,8 +188,8 @@ if __name__ == "__main__":
         global_epochs=100, local_epochs=5,
         client_num=100, batch_size=50, lr=0.01,
         device="cuda",
-        result_dir=app_root + "results/iid/",
-        data_num_range=(100, 501), alpha_range=(10000, 10000)
+        result_dir=app_root + "results/noniid/",
+        data_num_range=(100, 501), alpha_range=(100000, 100000)
         )
     
     fl = FL(config)
