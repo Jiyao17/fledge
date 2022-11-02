@@ -399,7 +399,7 @@ class SCAttackerTask(SCTrainerTask):
         super().__init__(trainset, testset, epochs, lr, batch_size, device)
 
     @staticmethod
-    def attacker_dataset_compose(dataset: Dataset, target_type: str) -> Dataset:
+    def attacker_dataset_compose(dataset: Dataset, attack_label: str, target_label: str) -> Dataset:
         """
         change all labels to target_type
         """

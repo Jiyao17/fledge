@@ -184,13 +184,22 @@ class FL(App):
 
 
 if __name__ == "__main__":
-    config = FLConfigDrch(project_root + "datasets/raw/", FLTaskType.SC, 
+    config_iid = FLConfigDrch(project_root + "datasets/raw/", FLTaskType.SC, 
+        global_epochs=100, local_epochs=5,
+        client_num=100, batch_size=50, lr=0.01,
+        device="cuda",
+        result_dir=app_root + "results/iid/",
+        data_num_range=(300, 301), alpha_range=(100000, 100000)
+        )
+
+    config_niid = FLConfigDrch(project_root + "datasets/raw/", FLTaskType.SC,
         global_epochs=100, local_epochs=5,
         client_num=100, batch_size=50, lr=0.01,
         device="cuda",
         result_dir=app_root + "results/noniid/",
-        data_num_range=(100, 501), alpha_range=(100000, 100000)
+        data_num_range=(100, 501), alpha_range=(0.1, 0.1)
         )
-    
+
+    config = config_niid
     fl = FL(config)
     fl.run()
