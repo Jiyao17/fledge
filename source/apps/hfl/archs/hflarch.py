@@ -55,7 +55,7 @@ class HFLTrainer(Node):
         elif command == HFLCammand.CLIENT_SEND_TEST_RESULTS:
             # print("Client sent test results")
             return self.task.test()
-            
+   
 
 class FLAggregator(Aggregator):
 

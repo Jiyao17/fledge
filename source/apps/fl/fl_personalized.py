@@ -10,7 +10,7 @@ sys.path.append(project_root)
 
 from source.common.app import TaskType, Config, App
 from source.common.arch import HFLTrainer, HFLAggregator, HFLCommand
-from source.common.model import grads_cosine_deviation, grads_cosine_diff
+from source.common.measure import grads_cosine_deviation, grads_cosine_diff
 from source.common.tasks.sc import *
 
 import numpy as np
