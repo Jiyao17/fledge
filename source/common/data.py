@@ -122,7 +122,7 @@ class DatasetPartitionerDirichlet(DatasetPartitioner):
 
         self.subsets: list[Subset] = None
   
-    def dataset_categorize(self, dataset: Dataset) -> 'list[list[int]]':
+    def dataset_categorize(self) -> 'list[list[int]]':
         """
         return value:
         (return list)[i]: list[int] = all indices for category i
@@ -181,7 +181,7 @@ class DatasetPartitionerDirichlet(DatasetPartitioner):
         if self.distributions is None:
             self.get_distributions()
 
-        categorized_indexes = self.dataset_categorize(self.dataset)
+        categorized_indexes = self.dataset_categorize()
         for indexes in categorized_indexes:
             np.random.shuffle(indexes)
 

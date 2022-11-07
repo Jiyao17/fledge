@@ -50,6 +50,8 @@ class HFLCommand(Command):
 
 
 class HFLAggregator(Node): pass
+
+
 class HFLTrainer(Node):
 
     def __init__(self, task: Task, parent: HFLAggregator):
@@ -161,3 +163,4 @@ class HFLAggregator(Node):
         avg_model = self.task.model_avg(self.update_list, self.weights)
         self.task.set_model_state_dict(avg_model)
 
+        

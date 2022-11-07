@@ -31,11 +31,16 @@ class FLConfigPer(Config):
         client_num: int=100, batch_size: int=10, lr: float=0.01,
         device: str="cpu",
         result_dir: str=project_root,
+
+        data_num_threshold = 100,
+        test_ratio = 0.3,
         ):
         super().__init__(data_dir, task_type, client_num, batch_size, lr, local_epochs, device, result_dir)
         # self.proc_num = proc_num
         self.global_epochs = global_epochs
-        self.local_epochs = local_epochs
+
+        self.data_num_threshold = data_num_threshold,
+        self.test_ratio = test_ratio,
 
 
 class FL(App):
@@ -56,7 +61,8 @@ class FL(App):
         # create users subsets
         if self.config.task_type == FLTaskType.SC:
             self.partitioner = SCDatasetPartitionerByUser(self.trainset)
-            user_subsets = self.partitioner.get_pfl_subsets(100, 0.3)
+            user_subsets = self.partitioner.get_pfl_subsets(
+                self.config.data_num_threshold, self.config.test_ratio)
         
         # Spawn clients
         clients: list[HFLTrainer] = []

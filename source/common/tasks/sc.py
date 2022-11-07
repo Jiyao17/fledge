@@ -294,7 +294,10 @@ class SCDatasetPartitionerByUser(SCDatasetPartitionHelper, DatasetPartitioner):
         DatasetPartitioner.__init__(self, dataset)
         SCDatasetPartitionHelper.__init__(self, dataset)
 
+        self.distributions_by_user = None
+
     def get_subsets(self, data_num_threshold) -> 'list[Dataset]':
+        # obsolete
         distribution = SCTaskHelper.get_index_distri_by_speaker(self.dataset)
         filtered_distri = {}
         for speaker in distribution.keys():
@@ -306,6 +309,7 @@ class SCDatasetPartitionerByUser(SCDatasetPartitionHelper, DatasetPartitioner):
             subset = Subset(self.dataset, filtered_distri[speaker])
             subsets.append(subset)
         
+
         return subsets
 
     def get_pfl_subsets(self, data_num_threshold: int, test_frac: float) -> 'list[tuple[Dataset, Dataset]]':
@@ -313,19 +317,24 @@ class SCDatasetPartitionerByUser(SCDatasetPartitionHelper, DatasetPartitioner):
         generate subsets for pfl
         trainset and testset for each user
         """
-        distribution = SCTaskHelper.get_index_distri_by_speaker(self.dataset)
+        indices_by_user = SCTaskHelper.get_index_distri_by_speaker(self.dataset)
         user_subsets = []
-
-        for speaker in distribution.keys():
-            if len(distribution[speaker]) >= data_num_threshold:
+        self.distributions_by_user = []
+        self.distributions = []
+        for speaker in indices_by_user.keys():
+            if len(indices_by_user[speaker]) >= data_num_threshold:
                 # randomize user data
-                np.random.shuffle(distribution[speaker])
+                np.random.shuffle(indices_by_user[speaker])
                 # split user data into train and test
-                test_num = int(len(distribution[speaker]) * test_frac)
-                trainset = Subset(self.dataset, distribution[speaker][test_num:])
-                testset = Subset(self.dataset, distribution[speaker][:test_num])
+                test_num = int(len(indices_by_user[speaker]) * test_frac)
+                trainset = Subset(self.dataset, indices_by_user[speaker][test_num:])
+                testset = Subset(self.dataset, indices_by_user[speaker][:test_num])
 
                 user_subsets.append((trainset, testset))
+
+                # record distribution
+                
+                self.distributions_by_user.append(indices_by_user[speaker])
         
         return user_subsets
 

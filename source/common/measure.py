@@ -5,6 +5,8 @@ import numpy as np
 import torch
 from torch import nn
 
+import matplotlib.pyplot as plt
+
 
 def vec_cosine_dis(v1, v2):
     return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
@@ -56,7 +58,7 @@ def model_sd_euclidean_distance(m1_sd, m2_sd):
     v2 = flatten_model_sd(m2_sd)
     return vec_euclidean_distance(v1, v2)
 
-def get_grads(global_model: nn.Module, local_models: 'list[nn.Module]'):
+def get_updates(global_model: nn.Module, local_models: 'list[nn.Module]'):
     """
     get grads of all local models
     """
@@ -69,51 +71,122 @@ def get_grads(global_model: nn.Module, local_models: 'list[nn.Module]'):
 
     return grads
 
-def grads_cosine_deviation(global_model: nn.Module, local_models: 'list[nn.Module]', safe_mode=True):
+def cosine_deviation(vecs) -> np.ndarray:
+    """
+    Calculate the cosine similarity between the average vec and each vec.
+    """
+    avg_vec = np.mean(vecs, axis=0)
+    cosine_deviation = [vec_cosine_dis(avg_vec, vec) for vec in vecs]
+
+    return np.array(cosine_deviation)
+
+def cosine_diff_matrix(vecs) -> np.ndarray:
+    """
+    Calculate the cosine similarity between two vecs.
+    """
+    cosine_diffs = np.zeros((len(vecs), len(vecs)))
+    for i in range(len(vecs)):
+        for j in range(len(vecs)):
+            cosine_diffs[i, j] = vec_cosine_dis(vecs[i], vecs[j])
+
+    return cosine_diffs
+
+def euclidean_deviation(vecs) -> np.ndarray:
+    """
+    Calculate the euclidean distance between the average vec and each vec.
+    """
+    avg_vec = np.mean(vecs, axis=0)
+    euclidean_deviation = [vec_euclidean_distance(avg_vec, vec) for vec in vecs]
+
+    return np.array(euclidean_deviation)
+
+def euclidean_diff_matrix(vecs) -> np.ndarray:
+    """
+    Calculate the euclidean distance between two vecs.
+    """
+    euclidean_diffs = np.zeros((len(vecs), len(vecs)))
+    for i in range(len(vecs)):
+        for j in range(len(vecs)):
+            euclidean_diffs[i, j] = vec_euclidean_distance(vecs[i], vecs[j])
+
+    return euclidean_diffs
+
+def grads_cosine_deviation(global_model: nn.Module, local_models: 'list[nn.Module]'):
     """
     Calculate the cosine similarity between global average grad and local grads.
     """
-    grads = get_grads(global_model, local_models)
-    global_grad = np.mean(grads, axis=0)
+    grads = get_updates(global_model, local_models)
+    devi = cosine_deviation(grads)
 
-    cosine_deviation = [vec_cosine_dis(global_grad, grad) for grad in grads]
-
-    return cosine_deviation
+    return devi
 
 def grads_cosine_diff(global_model: nn.Module, local_models: 'list[nn.Module]'):
     """
     Calculate the cosine similarity between two models.
     """
-    grads = get_grads(global_model, local_models)
+    grads = get_updates(global_model, local_models)
+    diffs = cosine_diff_matrix(grads)
 
-    cosine_diffs = np.zeros((len(grads), len(grads)))
-    for i in range(len(grads)):
-        for j in range(len(grads)):
-            cosine_diffs[i, j] = vec_cosine_dis(grads[i], grads[j])
-
-    return cosine_diffs
+    return diffs
 
 def grads_euclidean_deviation(global_model: nn.Module, local_models: 'list[nn.Module]'):
     """
     Calculate the euclidean distance between global average grad and local grads.
     """
-    grads = get_grads(global_model, local_models)
-    global_grad = np.mean(grads, axis=0)
+    grads = get_updates(global_model, local_models)
+    devi = euclidean_deviation(grads)
 
-    euclidean_deviation = [vec_euclidean_distance(global_grad, grad) for grad in grads]
-
-    return euclidean_deviation
+    return devi
 
 def grads_euclidean_diff(global_model: nn.Module, local_models: 'list[nn.Module]'):
     """
     Calculate the euclidean distance between two models.
     """
-    grads = get_grads(global_model, local_models)
+    grads = get_updates(global_model, local_models)
+    diffs = euclidean_diff_matrix(grads)
 
-    euclidean_diffs = np.zeros((len(grads), len(grads)))
-    for i in range(len(grads)):
-        for j in range(len(grads)):
-            euclidean_diffs[i, j] = vec_euclidean_distance(grads[i], grads[j])
+    return diffs
 
-    return euclidean_diffs
+def plot_diff_by_client(diffs: 'np.ndarray', result_file):
+    """
+    cosine distance between global model and clients' gradients
+    one picture for one iteration
+    one dot for each other client
+    one x for each client
+    """
+    if len(diffs) == 0:
+        return
+
+
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = prop_cycle.by_key()['color']
+    colors = colors[:len(diffs)]
+    dot_colors = []
+    labels = []
+    plt.figure()
+    for j in range(diffs.shape[0]): # each client
+        x = []
+        y = []
+        for k in range(diffs.shape[1]): # each other client
+            if j != k:
+                x.append(k)
+                y.append(diffs[j][k])
+                dot_colors.append(colors[j])
+    
+        plt.scatter(x, y, label=f'client {j}')
+    plt.legend()
+    plt.savefig(result_file)
+    plt.close()
+
+def plot_devi_by_client(devi: 'np.ndarray', result_file):
+    """
+    cosine distance between global model and clients' gradients
+    one picture for each epoch
+    one dot for each clientd
+    """
+    plt.figure()
+    plt.scatter(range(len(devi)), devi)
+    plt.legend()
+    plt.savefig(result_file)
+    plt.close()
 

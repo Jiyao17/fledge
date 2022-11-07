@@ -9,6 +9,10 @@ class TaskType(enum.Enum):
     pass
 
 
+class ArchType(enum.Enum):
+    pass
+
+
 class Config:
     
     def __init__(self, data_dir: str, task_type: TaskType,
@@ -34,8 +38,9 @@ class App(ABC):
     Abstract base class for fl architectures, like PFL, HFL, etc.
     """
 
-    def __init__(self, config: Config):
-        self.config = config
+    def __init__(self, ArchClass, TaskClass):
+        self.arch_class = ArchClass
+        self.task_class = TaskClass
 
     @abstractmethod
     def build_structure(self):

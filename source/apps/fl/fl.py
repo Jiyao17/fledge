@@ -25,6 +25,7 @@ class FLTaskType(TaskType):
     SC = 0 # Speech Commands Recognition
     CIFAR10 = 1 # Image Classification
 
+
 class FLArchType(ArchType):
     FL_DIRICHLET = 0 # Dirichlet Distributed Federated Learning
     FL_PERSONALIZED = 1 # Personalized Federated Learning
@@ -46,6 +47,7 @@ class ArchConfigDrch(Config):
         self.data_num_range = data_num_range
         self.alpha_range = alpha_range
 
+
 class ArchConfigPer(Config):
     def __init__(self, data_dir: str, task_type: FLTaskType = FLTaskType.SC,
         global_epochs: int=100, local_epochs: int=2,
@@ -64,11 +66,10 @@ class ArchConfigPer(Config):
         self.test_ratio = test_ratio
 
 
-
-
 class FL(App):
 
-    def __init__(self, config: Config):
+    def __init__(self, ArchType: FLArchType, T):
+        
         self.config = copy.deepcopy(config)
 
         if self.config.task_type == FLTaskType.SC:
@@ -88,14 +89,11 @@ class FL(App):
             user_trainsets = user_subsets
             user_testsets = user_subsets
         elif isinstance(self.config, ArchConfigPer):
-            partitioner = SCDatasetPartitionerByUser(self.trainset)
-            user_subsets = partitioner.get_pfl_subsets(
+            self.partitioner = SCDatasetPartitionerByUser(self.trainset)
+            user_subsets = self.partitioner.get_pfl_subsets(
                 self.config.data_num_threshold, self.config.test_ratio)
             user_trainsets = [user_subsets[i][0] for i in range(len(user_subsets))]
             user_testsets = [user_subsets[i][1] for i in range(len(user_subsets))]
-        else:
-            raise NotImplementedError
-
         partitioner.plot_distributions(
             partitioner.distributions, len(partitioner.distributions), 
             self.config.result_dir + "distributions.png")
@@ -253,6 +251,7 @@ class FL(App):
 
 
 
+
 if __name__ == "__main__":
     config_iid = ArchConfigDrch(project_root + "datasets/raw/", FLTaskType.SC, 
         global_epochs=100, local_epochs=5,
@@ -270,14 +269,7 @@ if __name__ == "__main__":
         data_num_range=(100, 501), alpha_range=(0.1, 0.1)
         )
 
-    config_personalized = ArchConfigPer(project_root + "datasets/raw/", FLTaskType.SC, 
-        global_epochs=100, local_epochs=5,
-        client_num=10, device="cuda",
-        result_dir=app_root + "results/personalized/",
-        data_num_threshold=100, test_ratio=0.3,
-        )
-
-    config = config_personalized
+    config = config_iid
     if not os.path.exists(config.result_dir):
         os.makedirs(config.result_dir)
 
