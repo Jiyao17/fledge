@@ -62,14 +62,20 @@ def get_updates(global_model: nn.Module, local_models: 'list[nn.Module]'):
     """
     get grads of all local models
     """
-    global_sd: dict[str, torch.Tensor] = global_model.state_dict()
-    local_sds: 'list[dict[str, torch.Tensor]]' = [m.state_dict() for m in local_models]
-    global_vec = flatten_model_sd(global_sd)
-    local_vecs = [flatten_model_sd(sd) for sd in local_sds]
+    global_vec = flatten_model(global_model)
+    local_vecs = [flatten_model(model) for model in local_models]
 
     grads = [local_vec - global_vec for local_vec in local_vecs]
 
     return grads
+
+def l2norm(vecs):
+    """
+    Calculate the l2 norm of each vec.
+    """
+    norms = [np.linalg.norm(vec) for vec in vecs]
+
+    return np.array(norms)
 
 def cosine_deviation(vecs) -> np.ndarray:
     """
@@ -82,7 +88,7 @@ def cosine_deviation(vecs) -> np.ndarray:
 
 def cosine_diff_matrix(vecs) -> np.ndarray:
     """
-    Calculate the cosine similarity between two vecs.
+    Calculate the cosine similarity between every two vecs.
     """
     cosine_diffs = np.zeros((len(vecs), len(vecs)))
     for i in range(len(vecs)):
@@ -160,7 +166,9 @@ def plot_diff_by_client(diffs: 'np.ndarray', result_file):
 
     prop_cycle = plt.rcParams['axes.prop_cycle']
     colors = prop_cycle.by_key()['color']
-    colors = colors[:len(diffs)]
+    if len(diffs) > len(colors):
+        colors = colors * (len(diffs) // len(colors) + 1)
+    colors = colors[:diffs.shape[0]]
     dot_colors = []
     labels = []
     plt.figure()
@@ -174,7 +182,9 @@ def plot_diff_by_client(diffs: 'np.ndarray', result_file):
                 dot_colors.append(colors[j])
     
         plt.scatter(x, y, label=f'client {j}')
-    plt.legend()
+    
+    if diffs.shape[0] <= 10:
+        plt.legend()
     plt.savefig(result_file)
     plt.close()
 
@@ -186,7 +196,8 @@ def plot_devi_by_client(devi: 'np.ndarray', result_file):
     """
     plt.figure()
     plt.scatter(range(len(devi)), devi)
-    plt.legend()
+    if devi.shape[0] <= 10:
+        plt.legend()
     plt.savefig(result_file)
     plt.close()
 

@@ -17,7 +17,8 @@ class Config:
     
     def __init__(self, data_dir: str, task_type: TaskType,
         client_num: int=350, 
-        batch_size: int=10, lr: float=0.01, local_epochs: int=5,
+        batch_size: int=10, lr: float=0.01, 
+        global_epochs: int=100, local_epochs: int=5,
         device: str="cpu",
         result_dir: str=None,
         ):
@@ -27,6 +28,7 @@ class Config:
         self.client_num = client_num
         self.batch_size = batch_size
         self.lr = lr
+        self.global_epochs = global_epochs
         self.local_epochs = local_epochs
 
         self.device = device

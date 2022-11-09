@@ -120,20 +120,25 @@ class SCTaskHelper:
         return distribution
 
     @staticmethod
-    def get_index_distri_by_speaker(dataset: Dataset) -> 'dict[str, list]':
+    def get_index_distribution_by_speaker(dataset: Dataset) -> 'tuple[dict[str, list]]':
         """
         Analyze the dataset.
-        return: dict{'speaker_id': [data_indexs]}
+        return: dict{'speaker_id': [data_indexs]} and dict{'speaker_id': [labels distribution]}
         """
-        distr_by_speaker: dict[str, list] = {}
+        index_by_speaker: dict[str, list] = {}
+        distribution_by_speaker: dict[str, list] = {}
 
         for i in range(len(dataset)):
             wave_form, sample_rate, label, speaker_id, utterance_number = dataset[i]
-            if speaker_id not in distr_by_speaker.keys():
-                distr_by_speaker[speaker_id] = []
-            distr_by_speaker[speaker_id].append(i)
+            if speaker_id not in index_by_speaker.keys():
+                index_by_speaker[speaker_id] = []
+                distribution_by_speaker[speaker_id] = np.zeros(len(SCTaskHelper.labels), dtype=np.int32)
+            
+            index_by_speaker[speaker_id].append(i)
+            label_index = SCTaskHelper.labels.index(label)
+            distribution_by_speaker[speaker_id][label_index] += 1
 
-        return distr_by_speaker
+        return index_by_speaker, distribution_by_speaker
 
     @staticmethod
     def get_datasets(data_path: str) -> 'tuple[Dataset, Dataset]':
@@ -294,35 +299,43 @@ class SCDatasetPartitionerByUser(SCDatasetPartitionHelper, DatasetPartitioner):
         DatasetPartitioner.__init__(self, dataset)
         SCDatasetPartitionHelper.__init__(self, dataset)
 
-        self.distributions_by_user = None
 
     def get_subsets(self, data_num_threshold) -> 'list[Dataset]':
         # obsolete
-        distribution = SCTaskHelper.get_index_distri_by_speaker(self.dataset)
-        filtered_distri = {}
-        for speaker in distribution.keys():
-            if sum(distribution[speaker]) >= data_num_threshold:
-                filtered_distri[speaker] = distribution[speaker]
+        index_by_user, distribution_by_user = SCTaskHelper.get_index_distribution_by_speaker(self.dataset)
+        filtered_indices = {}
+        filtered_distribution = {}
+        for speaker in index_by_user.keys():
+            if sum(index_by_user[speaker]) >= data_num_threshold:
+                filtered_indices[speaker] = index_by_user[speaker]
+                filtered_distribution[speaker] = distribution_by_user[speaker]
 
         subsets = []
-        for speaker in filtered_distri.keys():
-            subset = Subset(self.dataset, filtered_distri[speaker])
+        for speaker in filtered_indices.keys():
+            subset = Subset(self.dataset, filtered_indices[speaker])
             subsets.append(subset)
         
+        self.distributions_by_user = filtered_distribution
+        self.distributions = filtered_distribution
 
         return subsets
 
-    def get_pfl_subsets(self, data_num_threshold: int, test_frac: float) -> 'list[tuple[Dataset, Dataset]]':
+    def get_pfl_subsets(self, subset_num: int, 
+            data_num_threshold: int, test_frac: float) \
+            -> 'list[tuple[Dataset, Dataset]]':
         """
         generate subsets for pfl
         trainset and testset for each user
         """
-        indices_by_user = SCTaskHelper.get_index_distri_by_speaker(self.dataset)
+        indices_by_user, distributions_by_user = SCTaskHelper.get_index_distribution_by_speaker(self.dataset)
+        
         user_subsets = []
-        self.distributions_by_user = []
-        self.distributions = []
+        self.distributions = np.zeros((subset_num, len(SCTaskHelper.labels)))
+        cnt = 0
         for speaker in indices_by_user.keys():
             if len(indices_by_user[speaker]) >= data_num_threshold:
+                if cnt >= subset_num:
+                    break
                 # randomize user data
                 np.random.shuffle(indices_by_user[speaker])
                 # split user data into train and test
@@ -333,8 +346,11 @@ class SCDatasetPartitionerByUser(SCDatasetPartitionHelper, DatasetPartitioner):
                 user_subsets.append((trainset, testset))
 
                 # record distribution
-                
-                self.distributions_by_user.append(indices_by_user[speaker])
+                self.distributions[cnt] = distributions_by_user[speaker]
+                cnt += 1
+        
+        if cnt < subset_num:
+            raise Exception('Not enough qualified users')
         
         return user_subsets
 

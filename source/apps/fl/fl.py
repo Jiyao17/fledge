@@ -14,6 +14,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 
+from torch.multiprocessing import Process, Queue, Pipe
+
 from source.common.app import TaskType, ArchType, Config, App
 from source.common.arch import HFLTrainer, HFLAggregator, HFLCommand
 from source.common.measure import *
@@ -26,12 +28,12 @@ class FLTaskType(TaskType):
     CIFAR10 = 1 # Image Classification
 
 
-class FLArchType(ArchType):
+class FLDataDistrType(ArchType):
     FL_DIRICHLET = 0 # Dirichlet Distributed Federated Learning
     FL_PERSONALIZED = 1 # Personalized Federated Learning
 
 
-class ArchConfigDrch(Config):
+class ConfigDrch(Config):
     def __init__(self, data_dir: str, task_type: FLTaskType = FLTaskType.SC,
         global_epochs: int=100, local_epochs: int=2,
         client_num: int=100, batch_size: int=50, lr: float=0.01,
@@ -39,16 +41,16 @@ class ArchConfigDrch(Config):
         result_dir: str=project_root + "results/iid/",
         data_num_range: tuple=(100, 501), alpha_range: tuple=(100, 100),
         ):
-        super().__init__(data_dir, task_type, client_num, batch_size, lr, local_epochs, device, result_dir)
-        # self.proc_num = proc_num
-        self.global_epochs = global_epochs
-        # self.local_epochs = local_epochs
+        super().__init__(data_dir, task_type, client_num, 
+            batch_size, lr, 
+            global_epochs, local_epochs, 
+            device, result_dir)
 
         self.data_num_range = data_num_range
         self.alpha_range = alpha_range
 
 
-class ArchConfigPer(Config):
+class ConfigPer(Config):
     def __init__(self, data_dir: str, task_type: FLTaskType = FLTaskType.SC,
         global_epochs: int=100, local_epochs: int=2,
         client_num: int=100, batch_size: int=10, lr: float=0.01,
@@ -58,9 +60,10 @@ class ArchConfigPer(Config):
         data_num_threshold = 100,
         test_ratio = 0.3,
         ):
-        super().__init__(data_dir, task_type, client_num, batch_size, lr, local_epochs, device, result_dir)
-        # self.proc_num = proc_num
-        self.global_epochs = global_epochs
+        super().__init__(data_dir, task_type, client_num, 
+            batch_size, lr, 
+            global_epochs, local_epochs, 
+            device, result_dir)
 
         self.data_num_threshold = data_num_threshold
         self.test_ratio = test_ratio
@@ -68,8 +71,7 @@ class ArchConfigPer(Config):
 
 class FL(App):
 
-    def __init__(self, ArchType: FLArchType, T):
-        
+    def __init__(self, config: Config):
         self.config = copy.deepcopy(config)
 
         if self.config.task_type == FLTaskType.SC:
@@ -82,31 +84,34 @@ class FL(App):
     
     def spawn_clients(self, parent: HFLAggregator=None)-> 'list[HFLTrainer]':
         # create users subsets
-        if isinstance(self.config, ArchConfigDrch):
+        if isinstance(self.config, ConfigDrch):
             partitioner = SCDatasetPartitionerDirichlet(self.trainset,
                 self.config.client_num, self.config.data_num_range, self.config.alpha_range)
             user_subsets = partitioner.get_subsets()
             user_trainsets = user_subsets
             user_testsets = user_subsets
-        elif isinstance(self.config, ArchConfigPer):
-            self.partitioner = SCDatasetPartitionerByUser(self.trainset)
-            user_subsets = self.partitioner.get_pfl_subsets(
+        elif isinstance(self.config, ConfigPer):
+            partitioner = SCDatasetPartitionerByUser(self.trainset)
+            user_subsets = partitioner.get_pfl_subsets(self.config.client_num,
                 self.config.data_num_threshold, self.config.test_ratio)
-            user_trainsets = [user_subsets[i][0] for i in range(len(user_subsets))]
-            user_testsets = [user_subsets[i][1] for i in range(len(user_subsets))]
+            user_trainsets = [user_subsets[i][0] for i in range(self.config.client_num)]
+            user_testsets = [user_subsets[i][1] for i in range(self.config.client_num)]
+        else:
+            raise NotImplementedError
+
         partitioner.plot_distributions(
             partitioner.distributions, len(partitioner.distributions), 
             self.config.result_dir + "distributions.png")
-        with open(self.config.result_dir + "distributions.txt", "w") as f:
-            f.write(str(partitioner.distributions))
+        # with open(self.config.result_dir + "distributions.txt", "w") as f:
+        #     f.write(str(partitioner.distributions))
 
-            cosine_dis = cosine_deviation(partitioner.distributions)
-            plot_devi_by_client(cosine_dis, self.config.result_dir + "distribution_cos_devis.png")
-            f.write("\nDistribution Cosine Deviation: \n" + str(cosine_dis))
+        #     cosine_dis = cosine_deviation(partitioner.distributions)
+        #     plot_devi_by_client(cosine_dis, self.config.result_dir + "distribution_cos_devis.png")
+        #     f.write("\nDistribution Cosine Deviation: \n" + str(cosine_dis))
             
-            cosine_diffs = cosine_diff_matrix(partitioner.distributions)
-            plot_diff_by_client(cosine_diffs, self.config.result_dir + "distribution_cos_diffs.png")
-            f.write("\nDistribution Cosine Difference: \n" + str(cosine_diffs))
+        #     cosine_diffs = cosine_diff_matrix(partitioner.distributions)
+        #     plot_diff_by_client(cosine_diffs, self.config.result_dir + "distribution_cos_diffs.png")
+        #     f.write("\nDistribution Cosine Difference: \n" + str(cosine_diffs))
         # Spawn clients
         clients: list[HFLTrainer] = []
         for i in range(self.config.client_num):
@@ -141,7 +146,6 @@ class FL(App):
         aggregator = self.create_aggregator(clients)
         aggregator.init_params()
 
-
         return aggregator
 
     def run(self):
@@ -171,11 +175,12 @@ class FL(App):
                 for k in range(len(diffs_to_other_clients)):
                     if j != k:
                         plt.plot(range(len(diffs_to_other_clients[k])), diffs_to_other_clients[k], label=f'To Client {k}')
-                        plt.legend()
+                        if diffs_by_iter[0].shape[0] <= 10:
+                            plt.legend()
                 plt.savefig(result_dir + f"client{j}.png")
                 plt.close()
 
-        def plot_devi_by_iter(devis_by_iter: 'list[np.ndarray]', result_file):
+        def plot_matrix_by_col(devis_by_iter: 'list[np.ndarray]', result_file):
             """
             cosine distance between global model and clients' gradients
             one picture for all iteration
@@ -183,7 +188,7 @@ class FL(App):
             """
             # deviations of clients by iteration
             # get cosine_devis of each client by iteration
-            # for each client
+            # one pic for each client
             if len(devis_by_iter) == 0:
                 return
 
@@ -193,85 +198,163 @@ class FL(App):
                 for k in range(len(devis_by_iter)):
                     devis_by_client.append(devis_by_iter[k][j])
                 plt.plot(range(len(devis_by_client)), devis_by_client, label=f'Client {j}')
-            plt.legend()
+            if devis_by_iter[0].shape[0] <= 10:
+                plt.legend()
             plt.savefig(result_file)
             plt.close()
         
         # launch aggregator
         print("Clients data nums: ", self.root_aggregator.children_data_num)
-        cosine_devis_by_iter: 'list[np.ndarray]' = [] # list of n-element vector
-        cosine_diffs_by_iter: 'list[np.ndarray]' = [] # list of n*n array
-        eucl_devis_by_iter: 'list[np.ndarray]' = [] # list of n-element vector
-        eucl_diffs_by_iter: 'list[np.ndarray]' = [] # list of n*n array
+        update_cosine_devis_by_iter: 'list[np.ndarray]' = [] # list of n-element vector
+        update_cosine_diffs_by_iter: 'list[np.ndarray]' = [] # list of n*n array
+        update_eucl_devis_by_iter: 'list[np.ndarray]' = [] # list of n-element vector
+        update_eucl_diffs_by_iter: 'list[np.ndarray]' = [] # list of n*n array
+        update_l2norm_by_iter: 'list[np.ndarray]' = [] # list of n-element vector
+        model_cosine_devis_by_iter: 'list[np.ndarray]' = [] # list of n-element vector
+        model_cosine_diffs_by_iter: 'list[np.ndarray]' = [] # list of n*n array
+        model_eucl_devis_by_iter: 'list[np.ndarray]' = [] # list of n-element vector
+        model_eucl_diffs_by_iter: 'list[np.ndarray]' = [] # list of n*n array
+        global_accus_by_iter: 'list[float]' = []
+        client_avg_accus_by_iter: 'list[np.ndarray]' = [] # list of n-element vector
         for i in range(self.config.global_epochs):
-            # if i % 5 == 4:
-            results = self.root_aggregator.exec_command(HFLCommand.SEND_TRAINER_RESULTS)
-            print(f'Epoch {i}, personal accu: {results[0]}, loss: {results[1]}')
-            accu, loss = self.root_aggregator.exec_command(HFLCommand.SEND_TEST_RESULTS)
-            print(f'Epoch {i}, global accu: {accu}, loss: {loss}')
 
+            last_global_model = self.root_aggregator.task.model
             self.root_aggregator.exec_command(HFLCommand.UPDATE)
 
-            global_model = self.root_aggregator.task.model
-            local_models = [client.task.model for client in self.root_aggregator.children]
-            
-            cosine_deviations = grads_cosine_deviation(global_model, local_models)
-            cosine_diffs = grads_cosine_diff(global_model, local_models)
-            cosine_devis_by_iter.append(cosine_deviations)
-            cosine_diffs_by_iter.append(cosine_diffs)
+            # if i % 5 == 4:
+            client_avg_accu, client_avg_loss = self.root_aggregator.exec_command(HFLCommand.SEND_TRAINER_RESULTS)
+            print(f'Epoch {i}, personal accu: {client_avg_accu}, loss: {client_avg_loss}')
+            client_avg_accus_by_iter.append(client_avg_accu)
+            accu, loss = self.root_aggregator.exec_command(HFLCommand.SEND_TEST_RESULTS)
+            print(f'Epoch {i}, global accu: {accu}, loss: {loss}')
+            global_accus_by_iter.append(accu)
 
-            dirs = [self.config.result_dir + "/cos_diffs_by_iter/",
-                    self.config.result_dir + f"cos_diffs_by_client/",
-                    self.config.result_dir + f"cos_devis_by_client/"]
+            plt.figure()
+            plt.plot(range(len(global_accus_by_iter)), global_accus_by_iter, label='Global')
+            plt.plot(range(len(client_avg_accus_by_iter)), client_avg_accus_by_iter, label='Client Avg')
+            plt.legend()
+            plt.savefig(self.config.result_dir + f"accu.png")
+            plt.close()
+
+            # FLAME: cos diff matrix of local models, L2 norm vec of updates
+            global_model = self.root_aggregator.task.model
+            global_model_vec = flatten_model(global_model)
+            global_model_l2norm = np.linalg.norm(global_model_vec)
+            print(f'Global model L2 norm: {global_model_l2norm}')
+            local_models = [client.task.model for client in self.root_aggregator.children]
+            model_vecs = [flatten_model(model) for model in local_models]
+            updates = get_updates(last_global_model, local_models)
+            avg_update = np.mean(updates, axis=0)
+            print(f'Epoch {i}, avg update L2 norm: {np.linalg.norm(avg_update)}')
+            update_l2norms = l2norm(updates) # key point for FLAME
+            update_cosine_deviations = cosine_deviation(updates)
+            update_cosine_diffs = cosine_diff_matrix(updates)
+            update_cosine_devis_by_iter.append(update_cosine_deviations)
+            update_cosine_diffs_by_iter.append(update_cosine_diffs)
+            update_l2norm_by_iter.append(update_l2norms)
+
+            model_cosine_devis = cosine_deviation(model_vecs)
+            model_cosine_diffs = cosine_diff_matrix(model_vecs) # key point for FLAME
+            model_cosine_devis_by_iter.append(model_cosine_devis)
+            model_cosine_diffs_by_iter.append(model_cosine_diffs)
+
+            dirs = [ self.config.result_dir,
+                self.config.result_dir + "update_cos_diffs_by_iter/",
+                self.config.result_dir + "update_cos_diffs_by_client/",
+                self.config.result_dir + "update_cos_devis_by_client/",
+                self.config.result_dir + "model_cos_diffs_by_iter/",
+                self.config.result_dir + "model_cos_diffs_by_client/",
+                self.config.result_dir + "model_cos_devis_by_client/"]
             for dir in dirs:
                 if not os.path.exists(dir):
                     os.makedirs(dir)
-            plot_diff_by_iter(cosine_diffs_by_iter, self.config.result_dir + "/cos_diffs_by_iter/")
-            plot_devi_by_iter(cosine_devis_by_iter, self.config.result_dir + f"cos_devis_by_iter.png")
-            plot_diff_by_client(cosine_diffs, self.config.result_dir + f"cos_diffs_by_client/{i}.png")
-            plot_devi_by_client(cosine_deviations, self.config.result_dir + f"cos_devis_by_client/{i}.png")
+            plot_matrix_by_col(update_l2norm_by_iter, self.config.result_dir + "update_l2norm_by_iter.png")
+            plot_diff_by_iter(update_cosine_diffs_by_iter, self.config.result_dir + "/update_cos_diffs_by_iter/")
+            plot_matrix_by_col(update_cosine_devis_by_iter, self.config.result_dir + f"update_cos_devis_by_iter.png")
+            plot_diff_by_client(update_cosine_diffs, self.config.result_dir + f"update_cos_diffs_by_client/global_round{i}.png")
+            plot_devi_by_client(update_cosine_deviations, self.config.result_dir + f"update_cos_devis_by_client/global_round{i}.png")
+            plot_diff_by_iter(model_cosine_diffs_by_iter, self.config.result_dir + "/model_cos_diffs_by_iter/")
+            plot_matrix_by_col(model_cosine_devis_by_iter, self.config.result_dir + f"model_cos_devis_by_iter.png")
+            plot_diff_by_client(model_cosine_diffs, self.config.result_dir + f"model_cos_diffs_by_client/global_round{i}.png")
+            plot_devi_by_client(model_cosine_devis, self.config.result_dir + f"model_cos_devis_by_client/global_round{i}.png")
+
 
             # euclidean distances of clients by iteration
             # get euclidean distances of each client by iteration
-            euclidean_deviations = grads_euclidean_deviation(global_model, local_models)
-            euclidean_diffs = grads_euclidean_diff(global_model, local_models)
-            eucl_devis_by_iter.append(euclidean_deviations)
-            eucl_diffs_by_iter.append(euclidean_diffs)
+            update_euclidean_deviations = euclidean_deviation(updates)
+            update_euclidean_diffs = euclidean_diff_matrix(updates)
+            update_eucl_devis_by_iter.append(update_euclidean_deviations)
+            update_eucl_diffs_by_iter.append(update_euclidean_diffs)
+
+            model_eucl_devis = euclidean_deviation(model_vecs)
+            model_eucl_diffs = euclidean_diff_matrix(model_vecs)
+            model_eucl_devis_by_iter.append(model_eucl_devis)
+            model_eucl_diffs_by_iter.append(model_eucl_diffs)
             
-            dirs = [self.config.result_dir + "/euc_diffs_by_iter/",
-                    self.config.result_dir + f"euc_diffs_by_client/",
-                    self.config.result_dir + f"euc_devis_by_client/"]
+            dirs = [self.config.result_dir + "update_euc_diffs_by_iter/",
+                    self.config.result_dir + f"update_euc_diffs_by_client/",
+                    self.config.result_dir + f"update_euc_devis_by_client/",
+                    self.config.result_dir + "model_euc_diffs_by_iter/",
+                    self.config.result_dir + f"model_euc_diffs_by_client/",
+                    self.config.result_dir + f"model_euc_devis_by_client/"]
+
             for dir in dirs:
                 if not os.path.exists(dir):
                     os.makedirs(dir)
-            plot_diff_by_iter(eucl_diffs_by_iter, self.config.result_dir+ "euc_diffs_by_iter/")
-            plot_devi_by_iter(eucl_devis_by_iter, self.config.result_dir + f"euc_devis_by_iter.png")
-            plot_diff_by_client(euclidean_diffs, self.config.result_dir + f"euc_diffs_by_client/{i}.png")
-            plot_devi_by_client(euclidean_deviations, self.config.result_dir + f"euc_devis_by_client/{i}.png")
+            
+            plot_diff_by_iter(update_eucl_diffs_by_iter, self.config.result_dir+ "update_euc_diffs_by_iter/")
+            plot_matrix_by_col(update_eucl_devis_by_iter, self.config.result_dir + f"update_euc_devis_by_iter.png")
+            plot_diff_by_client(update_euclidean_diffs, self.config.result_dir + f"update_euc_diffs_by_client/global_round{i}.png")
+            plot_devi_by_client(update_euclidean_deviations, self.config.result_dir + f"update_euc_devis_by_client/global_round{i}.png")
+            plot_diff_by_iter(model_eucl_diffs_by_iter, self.config.result_dir + "model_euc_diffs_by_iter/")
+            plot_matrix_by_col(model_eucl_devis_by_iter, self.config.result_dir + f"model_euc_devis_by_iter.png")
+            plot_diff_by_client(model_eucl_diffs, self.config.result_dir + f"model_euc_diffs_by_client/global_round{i}.png")
+            plot_devi_by_client(model_eucl_devis, self.config.result_dir + f"model_euc_devis_by_client/global_round{i}.png")
 
 
+config_iid = ConfigDrch(project_root + "datasets/raw/", FLTaskType.SC, 
+    global_epochs=100, local_epochs=5,
+    client_num=20, batch_size=20, lr=0.01,
+    device="cuda",
+    result_dir=app_root + "results/iid/",
+    data_num_range=(120, 121), alpha_range=(100000, 100000)
+    )
 
+config_niid = ConfigDrch(project_root + "datasets/raw/", FLTaskType.SC,
+    global_epochs=100, local_epochs=5,
+    client_num=20, batch_size=20, lr=0.01,
+    device="cuda",
+    result_dir=app_root + "results/noniid/",
+    data_num_range=(110, 111), alpha_range=(0.1, 0.1)
+    )
+
+config_personalized = ConfigPer(project_root + "datasets/raw/", FLTaskType.SC, 
+    global_epochs=100, local_epochs=5,
+    client_num=20, batch_size=20, lr=0.01,
+    device="cuda",
+    result_dir=app_root + "results/personalized/",
+    data_num_threshold=110, test_ratio=0.2,
+    )
+
+
+def run_test_set(configs: 'list[Config]'):
+    for config in configs:
+        if not os.path.exists(config.result_dir):
+            os.makedirs(config.result_dir)
+
+        fl = FL(config)
+        proc = Process(target=fl.run)
+        proc.start()
 
 if __name__ == "__main__":
-    config_iid = ArchConfigDrch(project_root + "datasets/raw/", FLTaskType.SC, 
-        global_epochs=100, local_epochs=5,
-        client_num=10, batch_size=50, lr=0.01,
-        device="cuda",
-        result_dir=app_root + "results/iid/",
-        data_num_range=(300, 301), alpha_range=(100000, 100000)
-        )
 
-    config_niid = ArchConfigDrch(project_root + "datasets/raw/", FLTaskType.SC,
-        global_epochs=100, local_epochs=5,
-        client_num=10, batch_size=50, lr=0.01,
-        device="cuda",
-        result_dir=app_root + "results/noniid/",
-        data_num_range=(100, 501), alpha_range=(0.1, 0.1)
-        )
+    # config = config_iid
+    # config = config_niid
+    config = config_personalized
+    configs: 'list[Config]' = [config_iid, config_niid, config_personalized]
 
-    config = config_iid
     if not os.path.exists(config.result_dir):
         os.makedirs(config.result_dir)
-
     fl = FL(config)
+
     fl.run()
