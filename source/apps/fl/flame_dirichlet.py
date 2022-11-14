@@ -172,7 +172,7 @@ class FL(App):
                         # each iter
                         diffs_to_single_client_by_iter.append(diffs_by_iter[l][j][k])
                     diffs_to_other_clients.append(diffs_to_single_client_by_iter)
-                
+
                 plt.figure()
                 for k in range(len(diffs_to_other_clients)):
                     if j != k:

@@ -80,3 +80,13 @@ class AggregatorTask(Task):
         pass
 
 
+class TaskHelper(ABC):
+    AggregatorTaskClass: AggregatorTask
+    TrainerTaskClass: Task
+
+    def __init__():
+        pass
+    
+    @abstractmethod
+    def get_datasets(self):
+        pass

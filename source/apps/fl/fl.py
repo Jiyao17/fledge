@@ -20,6 +20,7 @@ from source.common.app import TaskType, ArchType, Config, App
 from source.common.arch import HFLTrainer, HFLAggregator, HFLCommand
 from source.common.measure import *
 from source.common.tasks.sc import *
+from source.common.tasks.cifar10 import *
 
 # Classic Federated Learning Architecture
 
@@ -75,18 +76,23 @@ class FL(App):
         self.config = copy.deepcopy(config)
 
         if self.config.task_type == FLTaskType.SC:
-            trainset, testset = SCTaskHelper.get_datasets(self.config.data_dir)
-            
-        self.trainset = trainset
-        self.testset = testset
+            self.task_helper = SCTaskHelper
+        elif self.config.task_type == FLTaskType.CIFAR10:
+            self.task_helper = CIFAR10TaskHelper
+
+        self.trainset, self.testset = self.task_helper.get_datasets(self.config.data_dir)
 
         self.root_aggregator = self.build_structure()
-    
+
     def spawn_clients(self, parent: HFLAggregator=None)-> 'list[HFLTrainer]':
         # create users subsets
         if isinstance(self.config, ConfigDrch):
-            partitioner = SCDatasetPartitionerDirichlet(self.trainset,
-                self.config.client_num, self.config.data_num_range, self.config.alpha_range)
+            if self.config.task_type == FLTaskType.SC:
+                partitioner = SCDatasetPartitionerDirichlet(self.trainset,
+                    self.config.client_num, self.config.data_num_range, self.config.alpha_range)
+            elif self.config.task_type == FLTaskType.CIFAR10:
+                partitioner = CIFAR10PartitionerDrichlet(self.trainset,
+                    self.config.client_num, self.config.data_num_range, self.config.alpha_range)
             user_subsets = partitioner.get_subsets()
             user_trainsets = user_subsets
             user_testsets = user_subsets
@@ -117,24 +123,23 @@ class FL(App):
         for i in range(self.config.client_num):
             trainset = user_trainsets[i]
             testset = user_testsets[i] # test is meaningless for non-personalized fl
-            if self.config.task_type == FLTaskType.SC:
-                task = SCTrainerTask(trainset, testset, 
-                    config.local_epochs, config.lr, config.batch_size,
-                    config.device
-                    )
-                client = HFLTrainer(task, parent)
+
+            task = self.task_helper.TrainerTaskClass(trainset, testset, 
+                self.config.local_epochs, self.config.lr, self.config.batch_size,
+                self.config.device
+                )
+            client = HFLTrainer(task, parent)
             clients.append(client)
 
         return clients
 
     def create_aggregator(self, children: 'list[HFLTrainer]'):
         # create the final aggregator
-        if self.config.task_type == FLTaskType.SC:
-            agg_task = SCAggregatorTask(None, self.testset,
-                self.config.global_epochs, self.config.lr, self.config.batch_size,
-                self.config.device
-                )
-            aggregator = HFLAggregator(agg_task, children, None)
+        agg_task = self.task_helper.AggregatorTaskClass(None, self.testset,
+            self.config.global_epochs, self.config.lr, self.config.batch_size,
+            self.config.device
+            )
+        aggregator = HFLAggregator(agg_task, children, None)
 
         for client in children:
             client.parent = aggregator
@@ -216,6 +221,7 @@ class FL(App):
         model_eucl_diffs_by_iter: 'list[np.ndarray]' = [] # list of n*n array
         global_accus_by_iter: 'list[float]' = []
         client_avg_accus_by_iter: 'list[np.ndarray]' = [] # list of n-element vector
+        global_model_l2norm_by_iter: 'list[float]' = []
         for i in range(self.config.global_epochs):
 
             last_global_model = self.root_aggregator.task.model
@@ -257,6 +263,7 @@ class FL(App):
             model_cosine_diffs = cosine_diff_matrix(model_vecs) # key point for FLAME
             model_cosine_devis_by_iter.append(model_cosine_devis)
             model_cosine_diffs_by_iter.append(model_cosine_diffs)
+            global_model_l2norm_by_iter.append(global_model_l2norm)
 
             dirs = [ self.config.result_dir,
                 self.config.result_dir + "update_cos_diffs_by_iter/",
@@ -268,6 +275,7 @@ class FL(App):
             for dir in dirs:
                 if not os.path.exists(dir):
                     os.makedirs(dir)
+            plot_vec(global_model_l2norm_by_iter, self.config.result_dir + "global_model_l2norm.png")
             plot_matrix_by_col(update_l2norm_by_iter, self.config.result_dir + "update_l2norm_by_iter.png")
             plot_diff_by_iter(update_cosine_diffs_by_iter, self.config.result_dir + "/update_cos_diffs_by_iter/")
             plot_matrix_by_col(update_cosine_devis_by_iter, self.config.result_dir + f"update_cos_devis_by_iter.png")
@@ -320,6 +328,14 @@ config_iid = ConfigDrch(project_root + "datasets/raw/", FLTaskType.SC,
     data_num_range=(120, 121), alpha_range=(100000, 100000)
     )
 
+config_iid_cifar10 = ConfigDrch(project_root + "datasets/raw/", FLTaskType.CIFAR10, 
+    global_epochs=100, local_epochs=5,
+    client_num=20, batch_size=100, lr=0.01,
+    device="cuda",
+    result_dir=app_root + "results/iid_cifar/",
+    data_num_range=(500, 501), alpha_range=(100000, 100000)
+    )
+
 config_niid = ConfigDrch(project_root + "datasets/raw/", FLTaskType.SC,
     global_epochs=100, local_epochs=5,
     client_num=20, batch_size=20, lr=0.01,
@@ -327,6 +343,16 @@ config_niid = ConfigDrch(project_root + "datasets/raw/", FLTaskType.SC,
     result_dir=app_root + "results/noniid/",
     data_num_range=(110, 111), alpha_range=(0.1, 0.1)
     )
+
+config_niid_cifar10 = ConfigDrch(project_root + "datasets/raw/", FLTaskType.CIFAR10,
+    global_epochs=100, local_epochs=5,
+    client_num=20, batch_size=100, lr=0.01,
+    device="cuda",
+    result_dir=app_root + "results/noniid_cifar/",
+    data_num_range=(500, 501), alpha_range=(0.1, 0.1)
+    )
+
+
 
 config_personalized = ConfigPer(project_root + "datasets/raw/", FLTaskType.SC, 
     global_epochs=100, local_epochs=5,
@@ -349,8 +375,10 @@ def run_test_set(configs: 'list[Config]'):
 if __name__ == "__main__":
 
     # config = config_iid
+    # config = config_iid_cifar10
     # config = config_niid
-    config = config_personalized
+    config = config_niid_cifar10
+    # config = config_personalized
     configs: 'list[Config]' = [config_iid, config_niid, config_personalized]
 
     if not os.path.exists(config.result_dir):

@@ -201,3 +201,12 @@ def plot_devi_by_client(devi: 'np.ndarray', result_file):
     plt.savefig(result_file)
     plt.close()
 
+def plot_vec(vec, result_file):
+    """
+    plot the vector
+    """
+    plt.figure()
+    plt.scatter(range(len(vec)), vec)
+    plt.savefig(result_file)
+    plt.close()
+
