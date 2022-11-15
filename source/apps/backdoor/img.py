@@ -58,3 +58,9 @@ def add_red_block(img: np.ndarray, x: int, y: int, size: int):
     img[2, x:x+size, y:y+size] = 0
     return img.reshape(3072)
 
+def add_backdoor(img: np.ndarray, x: int, y: int, backdoor: np.ndarray, size: int):
+
+    img = img.reshape(3, 32, 32)
+    backdoor = backdoor.reshape(3, 32, 32)
+    img[:, x:x+size, y:y+size] = backdoor[:, x:x+size, y:y+size]
+    return img.reshape(3072)
