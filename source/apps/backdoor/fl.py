@@ -4,7 +4,7 @@
 import sys
 # project_root = "/home/shallow/projects/fledge/"
 project_root = "/home/tuo28237/projects/fledge/"
-app_root = project_root + "source/apps/fl/"
+app_root = project_root + "source/apps/backdoor/"
 sys.path.append(project_root)
 
 import os

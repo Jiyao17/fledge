@@ -206,7 +206,7 @@ def plot_vec(vec, result_file):
     plot the vector
     """
     plt.figure()
-    plt.scatter(range(len(vec)), vec)
+    plt.plot(range(len(vec)), vec)
     plt.savefig(result_file)
     plt.close()
 
