@@ -153,7 +153,7 @@ def grads_euclidean_diff(global_model: nn.Module, local_models: 'list[nn.Module]
 
     return diffs
 
-def plot_diff_by_client(diffs: 'np.ndarray', result_file):
+def plot_diff_by_client(diffs: 'np.ndarray', result_file, backdoor_ratio=0.0):
     """
     cosine distance between global model and clients' gradients
     one picture for one iteration
@@ -163,14 +163,9 @@ def plot_diff_by_client(diffs: 'np.ndarray', result_file):
     if len(diffs) == 0:
         return
 
+    backdoor_num = int(diffs.shape[0] * backdoor_ratio)
+    colors = ['red'] * backdoor_num + ['green'] * (diffs.shape[0] - backdoor_num)
 
-    prop_cycle = plt.rcParams['axes.prop_cycle']
-    colors = prop_cycle.by_key()['color']
-    if len(diffs) > len(colors):
-        colors = colors * (len(diffs) // len(colors) + 1)
-    colors = colors[:diffs.shape[0]]
-    dot_colors = []
-    labels = []
     plt.figure()
     for j in range(diffs.shape[0]): # each client
         x = []
@@ -179,16 +174,15 @@ def plot_diff_by_client(diffs: 'np.ndarray', result_file):
             if j != k:
                 x.append(k)
                 y.append(diffs[j][k])
-                dot_colors.append(colors[j])
     
-        plt.scatter(x, y, label=f'client {j}')
+        plt.scatter(x, y, label=f'client {j}', color=colors[j])
     
     if diffs.shape[0] <= 10:
         plt.legend()
     plt.savefig(result_file)
     plt.close()
 
-def plot_devi_by_client(devi: 'np.ndarray', result_file):
+def plot_devi_by_client(devi: 'np.ndarray', result_file, backdoor_ratio=0.0):
     """
     cosine distance between global model and clients' gradients
     one picture for each epoch

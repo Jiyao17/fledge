@@ -20,12 +20,15 @@ dataset = CIFAR10(root=data_path,
             train=True,
             download=True)
 img: torch.Tensor = dataset[img_index][0]
-img: np.ndarray =img.numpy()
-img *= 255 # scale to [0, 255]
-img = img.astype(np.uint8)
-save_img(img, None, "original_torch.png")
+np_img: np.ndarray = np.copy(img.numpy())
+np_img *= 255 # scale to [0, 255]
+np_img = np_img.astype(np.uint8)
+save_img(np_img, None, "original_torch.png")
 modified_img = add_backdoor_tsimg(img, 0, 0, backdoor)
-save_img(modified_img, None, "modified_torch.png")
+modified_np_img: np.ndarray = np.copy(modified_img.numpy())
+modified_np_img *= 255 # scale to [0, 255]
+modified_np_img = modified_np_img.astype(np.uint8)
+save_img(modified_np_img, None, "modified_torch.png")
 
 # backdoored_img = torch.from_numpy(modified_img) / 255
 

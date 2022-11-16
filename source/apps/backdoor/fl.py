@@ -22,6 +22,8 @@ from source.common.measure import *
 from source.common.tasks.sc import *
 from source.common.tasks.cifar10 import *
 
+from backdoor import get_backdoor_block, BackdoorDataset
+
 # Classic Federated Learning Architecture
 
 class FLTaskType(TaskType):
@@ -41,6 +43,8 @@ class ConfigDrch(Config):
         device: str="cpu",
         result_dir: str=project_root + "results/iid/",
         data_num_range: tuple=(100, 501), alpha_range: tuple=(100, 100),
+        backdoor_client_ratio: float=0.0,
+        backdoor_data_ratio: float=0.0,
         ):
         super().__init__(data_dir, task_type, client_num, 
             batch_size, lr, 
@@ -49,6 +53,8 @@ class ConfigDrch(Config):
 
         self.data_num_range = data_num_range
         self.alpha_range = alpha_range
+        self.backdoor_client_ratio = backdoor_client_ratio
+        self.backdoor_data_ratio = backdoor_data_ratio
 
 
 class ConfigPer(Config):
@@ -60,6 +66,8 @@ class ConfigPer(Config):
 
         data_num_threshold = 100,
         test_ratio = 0.3,
+        backdoor_client_ratio: float=0.0,
+        backdoor_data_ratio: float=0.0,
         ):
         super().__init__(data_dir, task_type, client_num, 
             batch_size, lr, 
@@ -68,12 +76,14 @@ class ConfigPer(Config):
 
         self.data_num_threshold = data_num_threshold
         self.test_ratio = test_ratio
+        self.backdoor_ratio = backdoor_client_ratio
+        self.backdoor_data_ratio = backdoor_data_ratio
 
 
 class FL(App):
 
     def __init__(self, config: Config):
-        self.config = copy.deepcopy(config)
+        self.config: ConfigDrch or ConfigPer = copy.deepcopy(config)
 
         if self.config.task_type == FLTaskType.SC:
             self.task_helper = SCTaskHelper
@@ -118,8 +128,23 @@ class FL(App):
         #     cosine_diffs = cosine_diff_matrix(partitioner.distributions)
         #     plot_diff_by_client(cosine_diffs, self.config.result_dir + "distribution_cos_diffs.png")
         #     f.write("\nDistribution Cosine Difference: \n" + str(cosine_diffs))
+        
         # Spawn clients
         clients: list[HFLTrainer] = []
+
+        # backdoor client dataset
+        if self.config.backdoor_client_ratio > 0:
+            backdoor = get_backdoor_block()
+            backdoor = backdoor.astype(np.float32)
+            backdoor_client_num = int(self.config.client_num * self.config.backdoor_client_ratio)
+            for i in range(backdoor_client_num):
+                backdoor_indices = np.random.choice(len(user_trainsets[i]), int(len(backdoor) * self.config.backdoor_data_ratio))
+                user_trainsets[i] = BackdoorDataset(
+                    user_trainsets[i], backdoor_indices, backdoor)
+                backdoor_indices = range(len(user_testsets[i]))
+                user_testsets[i] = BackdoorDataset(
+                    user_testsets[i], backdoor_indices, backdoor)
+
         for i in range(self.config.client_num):
             trainset = user_trainsets[i]
             testset = user_testsets[i] # test is meaningless for non-personalized fl
@@ -154,7 +179,7 @@ class FL(App):
         return aggregator
 
     def run(self):
-        def plot_diff_by_iter(diffs_by_iter: 'list[np.ndarray]', result_dir):
+        def plot_diff_by_iter(diffs_by_iter: 'list[np.ndarray]', result_dir, backdoor_ratio=0.0):
             """
             cosine distance between every two clients' gradients
             one picture for each iteration
@@ -165,6 +190,8 @@ class FL(App):
             # diffs of clients by iteration
             # get cosine_diffs of each client by iteration
             # for each client
+            backdoor_num = int(diffs_by_iter[0].shape[0] * backdoor_ratio)
+            colors  = ["red"] * backdoor_num + ["green"] * (diffs_by_iter[0].shape[0] - backdoor_num)
             for j in range(diffs_by_iter[0].shape[0]):
                 # current client
                 diffs_to_other_clients = []
@@ -179,13 +206,14 @@ class FL(App):
                 plt.figure()
                 for k in range(len(diffs_to_other_clients)):
                     if j != k:
-                        plt.plot(range(len(diffs_to_other_clients[k])), diffs_to_other_clients[k], label=f'To Client {k}')
+                        plt.plot(range(len(diffs_to_other_clients[k])), diffs_to_other_clients[k],
+                            label=f'To Client {k}', color=colors[k])
                         if diffs_by_iter[0].shape[0] <= 10:
                             plt.legend()
                 plt.savefig(result_dir + f"client{j}.png")
                 plt.close()
 
-        def plot_matrix_by_col(devis_by_iter: 'list[np.ndarray]', result_file):
+        def plot_matrix_by_col(devis_by_iter: 'list[np.ndarray]', result_file, backdoor_ratio=0):
             """
             cosine distance between global model and clients' gradients
             one picture for all iteration
@@ -202,7 +230,10 @@ class FL(App):
                 devis_by_client = []
                 for k in range(len(devis_by_iter)):
                     devis_by_client.append(devis_by_iter[k][j])
-                plt.plot(range(len(devis_by_client)), devis_by_client, label=f'Client {j}')
+                if j <= backdoor_ratio*devis_by_iter[0].shape[0]:
+                    plt.plot(range(len(devis_by_client)), devis_by_client, label=f'Backdoored', color='red')
+                else:
+                    plt.plot(range(len(devis_by_client)), devis_by_client, label=f'Honest', color='green')
             if devis_by_iter[0].shape[0] <= 10:
                 plt.legend()
             plt.savefig(result_file)
@@ -276,15 +307,15 @@ class FL(App):
                 if not os.path.exists(dir):
                     os.makedirs(dir)
             plot_vec(global_model_l2norm_by_iter, self.config.result_dir + "global_model_l2norm.png")
-            plot_matrix_by_col(update_l2norm_by_iter, self.config.result_dir + "update_l2norm_by_iter.png")
-            plot_diff_by_iter(update_cosine_diffs_by_iter, self.config.result_dir + "/update_cos_diffs_by_iter/")
-            plot_matrix_by_col(update_cosine_devis_by_iter, self.config.result_dir + f"update_cos_devis_by_iter.png")
-            plot_diff_by_client(update_cosine_diffs, self.config.result_dir + f"update_cos_diffs_by_client/global_round{i}.png")
-            plot_devi_by_client(update_cosine_deviations, self.config.result_dir + f"update_cos_devis_by_client/global_round{i}.png")
-            plot_diff_by_iter(model_cosine_diffs_by_iter, self.config.result_dir + "/model_cos_diffs_by_iter/")
-            plot_matrix_by_col(model_cosine_devis_by_iter, self.config.result_dir + f"model_cos_devis_by_iter.png")
-            plot_diff_by_client(model_cosine_diffs, self.config.result_dir + f"model_cos_diffs_by_client/global_round{i}.png")
-            plot_devi_by_client(model_cosine_devis, self.config.result_dir + f"model_cos_devis_by_client/global_round{i}.png")
+            plot_matrix_by_col(update_l2norm_by_iter, self.config.result_dir + "update_l2norm_by_iter.png", self.config.backdoor_client_ratio)
+            plot_diff_by_iter(update_cosine_diffs_by_iter, self.config.result_dir + "/update_cos_diffs_by_iter/", self.config.backdoor_client_ratio)
+            plot_matrix_by_col(update_cosine_devis_by_iter, self.config.result_dir + f"update_cos_devis_by_iter.png", self.config.backdoor_client_ratio)
+            plot_diff_by_client(update_cosine_diffs, self.config.result_dir + f"update_cos_diffs_by_client/global_round{i}.png", self.config.backdoor_client_ratio)
+            plot_devi_by_client(update_cosine_deviations, self.config.result_dir + f"update_cos_devis_by_client/global_round{i}.png", self.config.backdoor_client_ratio)
+            plot_diff_by_iter(model_cosine_diffs_by_iter, self.config.result_dir + "/model_cos_diffs_by_iter/", self.config.backdoor_client_ratio)
+            plot_matrix_by_col(model_cosine_devis_by_iter, self.config.result_dir + f"model_cos_devis_by_iter.png", self.config.backdoor_client_ratio)
+            plot_diff_by_client(model_cosine_diffs, self.config.result_dir + f"model_cos_diffs_by_client/global_round{i}.png", self.config.backdoor_client_ratio)
+            plot_devi_by_client(model_cosine_devis, self.config.result_dir + f"model_cos_devis_by_client/global_round{i}.png", self.config.backdoor_client_ratio)
 
 
             # euclidean distances of clients by iteration
@@ -310,14 +341,14 @@ class FL(App):
                 if not os.path.exists(dir):
                     os.makedirs(dir)
             
-            plot_diff_by_iter(update_eucl_diffs_by_iter, self.config.result_dir+ "update_euc_diffs_by_iter/")
-            plot_matrix_by_col(update_eucl_devis_by_iter, self.config.result_dir + f"update_euc_devis_by_iter.png")
-            plot_diff_by_client(update_euclidean_diffs, self.config.result_dir + f"update_euc_diffs_by_client/global_round{i}.png")
-            plot_devi_by_client(update_euclidean_deviations, self.config.result_dir + f"update_euc_devis_by_client/global_round{i}.png")
-            plot_diff_by_iter(model_eucl_diffs_by_iter, self.config.result_dir + "model_euc_diffs_by_iter/")
-            plot_matrix_by_col(model_eucl_devis_by_iter, self.config.result_dir + f"model_euc_devis_by_iter.png")
-            plot_diff_by_client(model_eucl_diffs, self.config.result_dir + f"model_euc_diffs_by_client/global_round{i}.png")
-            plot_devi_by_client(model_eucl_devis, self.config.result_dir + f"model_euc_devis_by_client/global_round{i}.png")
+            plot_diff_by_iter(update_eucl_diffs_by_iter, self.config.result_dir+ "update_euc_diffs_by_iter/", self.config.backdoor_client_ratio)
+            plot_matrix_by_col(update_eucl_devis_by_iter, self.config.result_dir + f"update_euc_devis_by_iter.png", self.config.backdoor_client_ratio)
+            plot_diff_by_client(update_euclidean_diffs, self.config.result_dir + f"update_euc_diffs_by_client/global_round{i}.png", self.config.backdoor_client_ratio)
+            plot_devi_by_client(update_euclidean_deviations, self.config.result_dir + f"update_euc_devis_by_client/global_round{i}.png", self.config.backdoor_client_ratio)
+            plot_diff_by_iter(model_eucl_diffs_by_iter, self.config.result_dir + "model_euc_diffs_by_iter/", self.config.backdoor_client_ratio)
+            plot_matrix_by_col(model_eucl_devis_by_iter, self.config.result_dir + f"model_euc_devis_by_iter.png", self.config.backdoor_client_ratio)
+            plot_diff_by_client(model_eucl_diffs, self.config.result_dir + f"model_euc_diffs_by_client/global_round{i}.png", self.config.backdoor_client_ratio)
+            plot_devi_by_client(model_eucl_devis, self.config.result_dir + f"model_euc_devis_by_client/global_round{i}.png", self.config.backdoor_client_ratio)
 
 
 config_iid = ConfigDrch(project_root + "datasets/raw/", FLTaskType.SC, 
@@ -336,6 +367,10 @@ config_iid_cifar10 = ConfigDrch(project_root + "datasets/raw/", FLTaskType.CIFAR
     data_num_range=(500, 501), alpha_range=(100000, 100000)
     )
 
+config_iid_cifar10_backdoor = copy.deepcopy(config_iid_cifar10)
+config_iid_cifar10_backdoor.result_dir = app_root + "results/iid_cifar_backdoor/"
+config_iid_cifar10_backdoor.backdoor_client_ratio = 0.25
+
 config_niid = ConfigDrch(project_root + "datasets/raw/", FLTaskType.SC,
     global_epochs=100, local_epochs=5,
     client_num=20, batch_size=20, lr=0.01,
@@ -351,6 +386,24 @@ config_niid_cifar10 = ConfigDrch(project_root + "datasets/raw/", FLTaskType.CIFA
     result_dir=app_root + "results/noniid_cifar/",
     data_num_range=(500, 501), alpha_range=(0.1, 0.1)
     )
+
+config_niid_cifar10_backdoor = copy.deepcopy(config_niid_cifar10)
+config_niid_cifar10_backdoor.result_dir = app_root + "results/noniid_cifar_backdoor/"
+config_niid_cifar10_backdoor.backdoor_client_ratio = 0.25
+config_niid_cifar10_backdoor.backdoor_data_ratio = 1.0
+
+config_niid_cifar10_backdoor_52 = copy.deepcopy(config_niid_cifar10)
+config_niid_cifar10_backdoor_52.client_num = 10
+config_niid_cifar10_backdoor_52.result_dir = app_root + "results/noniid_cifar_backdoor_52/"
+config_niid_cifar10_backdoor_52.backdoor_client_ratio = 0.2
+config_niid_cifar10_backdoor_52.backdoor_data_ratio = 0.5
+
+config_niid_cifar10_backdoor_55 = copy.deepcopy(config_niid_cifar10)
+config_niid_cifar10_backdoor_55.client_num = 20
+config_niid_cifar10_backdoor_55.result_dir = app_root + "results/noniid_cifar_backdoor_55/"
+config_niid_cifar10_backdoor_55.backdoor_client_ratio = 0.2
+config_niid_cifar10_backdoor_55.backdoor_data_ratio = 0.2
+
 
 
 
@@ -376,8 +429,12 @@ if __name__ == "__main__":
 
     # config = config_iid
     # config = config_iid_cifar10
+    # config = config_iid_cifar10_backdoor
     # config = config_niid
-    config = config_niid_cifar10
+    # config = config_niid_cifar10
+    # config = config_niid_cifar10_backdoor
+    # config = config_niid_cifar10_backdoor_52
+    config = config_niid_cifar10_backdoor_55
     # config = config_personalized
     configs: 'list[Config]' = [config_iid, config_niid, config_personalized]
 
