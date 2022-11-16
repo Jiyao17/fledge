@@ -9,9 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def read_cifar10(path: str):
+def _read_cifar10_raw(path: str):
     for i in range(1, 6):
-        with open(path + f"/data_batch_{i}", "rb") as f:
+        with open(path + f"cifar-10-batches-py/data_batch_{i}", "rb") as f:
             data = pickle.load(f, encoding="bytes")
             if i == 1:
                 images = data[b"data"]
@@ -20,19 +20,19 @@ def read_cifar10(path: str):
                 images = np.concatenate((images, data[b"data"]))
                 labels = np.concatenate((labels, data[b"labels"]))
 
-    with open(path + "/test_batch", "rb") as f:
+    with open(path + "cifar-10-batches-py/test_batch", "rb") as f:
         data = pickle.load(f, encoding="bytes")
         test_images = data[b"data"]
         test_labels = data[b"labels"]
 
     return images, labels, test_images, test_labels
 
-def load_cifar10(path: str):
+def read_cifar10(path: str):
     """
     read cifar10 as trainset and testset
     dataset format: (img: numpy.ndarray, label)
     """
-    images, labels, test_images, test_labels = read_cifar10(path)
+    images, labels, test_images, test_labels = _read_cifar10_raw(path)
     trainset = []
     testset = []
     for i in range(len(images)):
@@ -41,26 +41,37 @@ def load_cifar10(path: str):
         testset.append((test_images[i], test_labels[i]))
     return trainset, testset
 
-def show_img(img: np.ndarray, label: int=None):
-    img = img.reshape(3, 32, 32).transpose(1, 2, 0)
+def save_img(img: np.ndarray, label=None, path: str="img.png"):
+    """
+    @img: numpy.ndarray, shape=(3072,)
+    """
     plt.figure()
-    plt.imshow(img)
-    plt.savefig("test.png")
-    # if label is not None:
-    #     plt.title(label)
-    # plt.show()
-    # plt.close()
+    img = img.reshape(3, 32, 32).transpose(1, 2, 0)
+    if label is not None:
+        plt.title(label)
+    plt.imsave(path, img)
+    plt.close()
 
-def add_red_block(img: np.ndarray, x: int, y: int, size: int):
+def get_backdoor_block(size: int = 4):
+    block = np.zeros(shape=(3, size, size,), dtype=np.uint8)
+    block[0, :, :] = 128
+    block[1, :, :] = 128
+    block[2, :, :] = 128
+    return block
+
+def add_backdoor_npimg(img: np.ndarray, x: int, y: int, backdoor: np.ndarray):
     img = img.reshape(3, 32, 32)
-    img[0, x:x+size, y:y+size] = 255
-    img[1, x:x+size, y:y+size] = 0
-    img[2, x:x+size, y:y+size] = 0
+    x_len = backdoor.shape[1]
+    y_len = backdoor.shape[2]
+    img[:, x:x+x_len, y:y+y_len] = backdoor[:, x:x+x_len, y:y+y_len]
     return img.reshape(3072)
 
-def add_backdoor(img: np.ndarray, x: int, y: int, backdoor: np.ndarray, size: int):
+def add_backdoor_tsimg(img: torch.Tensor, x: int, y: int, backdoor: torch.Tensor):
+    x_len = backdoor.shape[1]
+    y_len = backdoor.shape[2]
+    img[:, x:x+x_len, y:y+y_len] = backdoor[:, x:x+x_len, y:y+y_len]
+    return img
 
-    img = img.reshape(3, 32, 32)
-    backdoor = backdoor.reshape(3, 32, 32)
-    img[:, x:x+size, y:y+size] = backdoor[:, x:x+size, y:y+size]
-    return img.reshape(3072)
+def load_cifar10(trainset, testset):
+    pass
+
