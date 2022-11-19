@@ -230,7 +230,7 @@ class FL(App):
                 devis_by_client = []
                 for k in range(len(devis_by_iter)):
                     devis_by_client.append(devis_by_iter[k][j])
-                if j <= backdoor_ratio*devis_by_iter[0].shape[0]:
+                if j < backdoor_ratio*devis_by_iter[0].shape[0]:
                     plt.plot(range(len(devis_by_client)), devis_by_client, label=f'Backdoored', color='red')
                 else:
                     plt.plot(range(len(devis_by_client)), devis_by_client, label=f'Honest', color='green')
@@ -361,7 +361,7 @@ config_iid = ConfigDrch(project_root + "datasets/raw/", FLTaskType.SC,
 
 config_iid_cifar10 = ConfigDrch(project_root + "datasets/raw/", FLTaskType.CIFAR10, 
     global_epochs=100, local_epochs=5,
-    client_num=20, batch_size=50, lr=0.001,
+    client_num=20, batch_size=50, lr=0.01,
     device="cuda",
     result_dir=app_root + "results/iid_cifar/",
     data_num_range=(500, 501), alpha_range=(100000, 100000)
@@ -381,10 +381,12 @@ config_niid = ConfigDrch(project_root + "datasets/raw/", FLTaskType.SC,
 
 config_niid_cifar10 = ConfigDrch(project_root + "datasets/raw/", FLTaskType.CIFAR10,
     global_epochs=100, local_epochs=5,
-    client_num=20, batch_size=50, lr=0.001,
+    client_num=20, batch_size=50, lr=0.01,
     device="cuda",
     result_dir=app_root + "results/noniid_cifar/",
-    data_num_range=(500, 501), alpha_range=(0.1, 0.1)
+    data_num_range=(500, 501), alpha_range=(0.1, 0.1),
+    backdoor_client_ratio=0,
+    backdoor_data_ratio=0,
     )
 
 config_niid_cifar10_backdoor = copy.deepcopy(config_niid_cifar10)
@@ -431,10 +433,10 @@ if __name__ == "__main__":
     # config = config_iid_cifar10
     # config = config_iid_cifar10_backdoor
     # config = config_niid
-    # config = config_niid_cifar10
+    config = config_niid_cifar10
     # config = config_niid_cifar10_backdoor
     # config = config_niid_cifar10_backdoor_52
-    config = config_niid_cifar10_backdoor_55
+    # config = config_niid_cifar10_backdoor_55
     # config = config_personalized
     configs: 'list[Config]' = [config_iid, config_niid, config_personalized]
 
